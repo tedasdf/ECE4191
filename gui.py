@@ -5,8 +5,35 @@ class WildlifeBotApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Wildlife Bot")
-        self.geometry("1000x600")
+        self.geometry("1600x800")
         self.configure(bg="lightgray")
+
+        # Container to hold all frames
+        container = tk.Frame(self)
+        container.pack(fill="both", expand=True)
+
+        self.frames = {}  # store references to frames
+
+        # Initialize all screens
+        for F in (DeviceControl, ConnectionSetup, Captures):
+            frame = F(container, self)
+            frame.config(width=1600, height=800)
+            self.frames[F] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+
+        # Show the home screen first
+        self.show_frame(DeviceControl)
+
+    def show_frame(self, screen):
+        frame = self.frames[screen]
+        frame.tkraise()  # bring the frame to the top
+
+class DeviceControl(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+#        self.title("Wildlife Bot")
+#        self.geometry("1000x600")
+#        self.configure(bg="lightgray")
 
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
@@ -15,9 +42,16 @@ class WildlifeBotApp(tk.Tk):
         logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
         logo.pack(side="left", padx=10)
 
-        tk.Button(top_frame, text="Connection setup").pack(side="left", padx=5)
+
+        connectionsetup_button = tk.Button(top_frame, text="Connection Setup",
+                           command=lambda: controller.show_frame(ConnectionSetup))
+        connectionsetup_button.pack()
+
         tk.Button(top_frame, text="Device Control").pack(side="left", padx=5)
-        tk.Button(top_frame, text="Captures").pack(side="left", padx=5)
+
+        captures_button = tk.Button(top_frame, text="Captures",
+                           command=lambda: controller.show_frame(Captures))
+        captures_button.pack()
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
@@ -80,6 +114,29 @@ class WildlifeBotApp(tk.Tk):
 
         tk.Label(audio_frame, text="Volume:").grid(row=0, column=0, sticky="w")
         ttk.Scale(audio_frame, from_=0, to=100, orient="horizontal").grid(row=0, column=1)
+
+
+# Capture screen
+class Captures(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        label = tk.Label(self, text="This is the Captures Screen", font=("Arial", 16))
+        label.pack(pady=20)
+
+        button = tk.Button(self, text="Back to Home",
+                           command=lambda: controller.show_frame(DeviceControl))
+        button.pack()
+
+# Connection Setup Screen
+class ConnectionSetup(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        label = tk.Label(self, text="This is the Connection Setup Screen", font=("Arial", 16))
+        label.pack(pady=20)
+
+        button = tk.Button(self, text="Back to Home",
+                           command=lambda: controller.show_frame(DeviceControl))
+        button.pack()
 
 if __name__ == "__main__":
     app = WildlifeBotApp()
