@@ -5,8 +5,9 @@ class WildlifeBotApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Wildlife Bot")
-        self.geometry("1600x800")
+        ##self.geometry("1600x800")
         self.configure(bg="lightgray")
+        self.resizable(False,False)
 
         # Container to hold all frames
         container = tk.Frame(self)
@@ -17,8 +18,9 @@ class WildlifeBotApp(tk.Tk):
         # Initialize all screens
         for F in (DeviceControl, ConnectionSetup, Captures):
             frame = F(container, self)
-            frame.config(width=1600, height=800)
             self.frames[F] = frame
+            frame.config(width=1600, height=800, bd=3, relief="ridge")
+            #frame.pack_propagate(False)
             frame.grid(row=0, column=0, sticky="nsew")
 
         # Show the home screen first
@@ -31,9 +33,6 @@ class WildlifeBotApp(tk.Tk):
 class DeviceControl(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
-#        self.title("Wildlife Bot")
-#        self.geometry("1000x600")
-#        self.configure(bg="lightgray")
 
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
@@ -45,25 +44,25 @@ class DeviceControl(tk.Frame):
 
         connectionsetup_button = tk.Button(top_frame, text="Connection Setup",
                            command=lambda: controller.show_frame(ConnectionSetup))
-        connectionsetup_button.pack()
+        connectionsetup_button.pack(side="left", padx=5)
 
-        tk.Button(top_frame, text="Device Control").pack(side="left", padx=5)
+        tk.Button(top_frame, text="Device Control", relief="sunken").pack(side="left", padx=5)
 
         captures_button = tk.Button(top_frame, text="Captures",
                            command=lambda: controller.show_frame(Captures))
-        captures_button.pack()
+        captures_button.pack(side="left", padx=5)
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
         # --- Main Content Area ---
-        main_frame = tk.Frame(self, bg="lightgray")
+        main_frame = tk.Frame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Left: Image Placeholder
         image_frame = tk.LabelFrame(main_frame, text="Camera View", width=600, height=400)
         image_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-        image_placeholder = tk.Label(image_frame, text="[Camera Feed Placeholder]", bg="white")
-        image_placeholder.pack(expand=True, fill="both")
+        #image_placeholder = tk.Label(image_frame, text="[Camera Feed Placeholder]", bg="white")
+        #image_placeholder.pack(expand=True, fill="both")
 
         # Right: Creature Detection
         detect_frame = tk.LabelFrame(main_frame, text="Creatures Detected", width=250)
@@ -84,7 +83,7 @@ class DeviceControl(tk.Frame):
         tk.Button(detect_frame, text="Bounding Box Toggle").pack(pady=5)
 
         # --- Bottom Section ---
-        bottom_frame = tk.Frame(self, bg="lightgray")
+        bottom_frame = tk.LabelFrame(self, text="Audio Visualisation")
         bottom_frame.pack(fill="x", padx=10, pady=10)
 
         # Audio waveform placeholder
@@ -92,7 +91,7 @@ class DeviceControl(tk.Frame):
         waveform.pack(fill="x", pady=5)
 
         # Controls (Camera + Audio)
-        controls_frame = tk.Frame(bottom_frame, bg="lightgray")
+        controls_frame = tk.Frame(bottom_frame)
         controls_frame.pack(fill="x")
 
         # Camera Controls
