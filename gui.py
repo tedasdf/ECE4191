@@ -41,7 +41,6 @@ class DeviceControl(tk.Frame):
         logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
         logo.pack(side="left", padx=10)
 
-
         connectionsetup_button = tk.Button(top_frame, text="Connection Setup",
                            command=lambda: controller.show_frame(ConnectionSetup))
         connectionsetup_button.pack(side="left", padx=5)
@@ -54,49 +53,32 @@ class DeviceControl(tk.Frame):
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
-        # --- Main Content Area ---
-        main_frame = tk.Frame(self)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        # ---Video---
+        top_frame = tk.Frame(self)
+        top_frame.pack(side="top", padx=10, pady=10)
 
         # Left: Image Placeholder
-        image_frame = tk.LabelFrame(main_frame, text="Camera View", width=600, height=400)
-        image_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        video_frame = tk.LabelFrame(top_frame, text="Camera View", width=600, height=100)
+        video_frame.pack_propagate(False)
+        video_frame.pack(side="left", padx=10, pady=10)
         #image_placeholder = tk.Label(image_frame, text="[Camera Feed Placeholder]", bg="white")
         #image_placeholder.pack(expand=True, fill="both")
 
-        # Right: Creature Detection
-        detect_frame = tk.LabelFrame(main_frame, text="Creatures Detected", width=250)
-        detect_frame.pack(side="right", fill="y", padx=10, pady=10)
+        # Right
+        right_frame = tk.Frame(top_frame)
+        right_frame.pack(side="right", fill="both")
+
+        # detect frame
+        detect_frame = tk.LabelFrame(right_frame, text="Creatures Detected")
+        detect_frame.pack(side="top", fill="y", padx=10, pady=10)
 
         creatures = ["Platypus", "Lizard", "Crocodile", "Dove"]
         for c in creatures:
-            tk.Label(detect_frame, text=f"{c} - 0 samples").pack(anchor="w", padx=10, pady=2)
-
-        tk.Button(detect_frame, text="View Recordings").pack(pady=5)
-        tk.Button(detect_frame, text="Save last 30s vid").pack(pady=5)
-        tk.Button(detect_frame, text="Save last 30s audio").pack(pady=5)
-        tk.Button(detect_frame, text="Start/End Recording").pack(pady=5)
-
-        # Toggle buttons
-        tk.Button(detect_frame, text="Night Vision Toggle").pack(pady=5)
-        tk.Button(detect_frame, text="Filter Audio Toggle").pack(pady=5)
-        tk.Button(detect_frame, text="Bounding Box Toggle").pack(pady=5)
-
-        # --- Bottom Section ---
-        bottom_frame = tk.LabelFrame(self, text="Audio Visualisation")
-        bottom_frame.pack(fill="x", padx=10, pady=10)
-
-        # Audio waveform placeholder
-        waveform = tk.Label(bottom_frame, text="[Audio Waveform Placeholder]", bg="white", height=4)
-        waveform.pack(fill="x", pady=5)
-
-        # Controls (Camera + Audio)
-        controls_frame = tk.Frame(bottom_frame)
-        controls_frame.pack(fill="x")
+            tk.Label(detect_frame, text=f"{c} - 0 samples").pack(anchor="w", padx=10)
 
         # Camera Controls
-        cam_frame = tk.LabelFrame(controls_frame, text="Camera Controls")
-        cam_frame.pack(side="left", padx=10)
+        cam_frame = tk.LabelFrame(right_frame, text="Camera Controls")
+        cam_frame.pack(side="bottom", padx=10, pady=10)
 
         tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1)
@@ -107,13 +89,61 @@ class DeviceControl(tk.Frame):
         tk.Label(cam_frame, text="Pitch:").grid(row=2, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=2, column=1)
 
+        # button frame
+        button_frame = tk.Frame(right_frame, width=250)
+        button_frame.pack(side="top", fill="y")
+        
+        tk.Button(button_frame, text="Save last 30s vid", width=20).pack(pady=2)
+        tk.Button(button_frame, text="Start/End Recording", width=20).pack(pady=2)
+        tk.Button(button_frame, text="Night Vision Toggle", width=20).pack(pady=2)
+        tk.Button(button_frame, text="Bounding Box Toggle", width=20).pack(pady=2)
+
+        # ---Audio---
+        bottom_frame = tk.Frame(self)
+        bottom_frame.pack(side="bottom", padx=10, pady=10)
+
+        # Left: audio Placeholder
+        audio_frame = tk.LabelFrame(bottom_frame, text="Audio Visualisation", width=600, height=100)
+        audio_frame.pack_propagate(False)
+        audio_frame.pack(side="left", padx=10, pady=10)
+
+
+
+        # Right
+        bottom_right_frame = tk.Frame(bottom_frame)
+        bottom_right_frame.pack(side="right", fill="both")
+
+        # detect frame
+        bottom_detect_frame = tk.LabelFrame(bottom_right_frame, text="Creatures Detected")
+        bottom_detect_frame.pack(side="top", fill="y", padx=10, pady=10)
+
+        creatures = ["Platypus", "Lizard", "Crocodile", "Dove"]
+        for c in creatures:
+            tk.Label(bottom_detect_frame, text=f"{c} - 0 samples").pack(anchor="w", padx=10)
+
         # Audio Controls
-        audio_frame = tk.LabelFrame(controls_frame, text="Audio Controls")
-        audio_frame.pack(side="right", padx=10)
+        volumn_frame = tk.LabelFrame(bottom_right_frame, text="Audio Controls")
+        volumn_frame.pack(side="bottom", padx=10, pady=10)
 
-        tk.Label(audio_frame, text="Volume:").grid(row=0, column=0, sticky="w")
-        ttk.Scale(audio_frame, from_=0, to=100, orient="horizontal").grid(row=0, column=1)
+        tk.Label(volumn_frame, text="Volume:").grid(row=0, column=0, sticky="w")
+        ttk.Scale(volumn_frame, from_=0, to=100, orient="horizontal").grid(row=0, column=1)
 
+
+        # button frame
+        bottom_button_frame = tk.Frame(bottom_right_frame, width=250)
+        bottom_button_frame.pack(side="top", fill="y")
+        
+        tk.Button(bottom_button_frame, text="Save last 30s audio", width=20).pack(pady=2)
+        tk.Button(bottom_button_frame, text="Start/End Recording", width=20).pack(pady=2)
+        tk.Button(bottom_button_frame, text="Filter Audio Toggle", width=20).pack(pady=2)
+        tk.Button(bottom_button_frame, text="Bounding Box Toggle", width=20).pack(pady=2)
+
+        
+
+
+        
+
+        
 
 # Capture screen
 class Captures(tk.Frame):
