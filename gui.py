@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 
 class WildlifeBotApp(tk.Tk):
-    def init(self):
-        super().init()
+    def __init__(self):
+        super().__init__()
         self.title("Wildlife Bot")
         self.geometry("1000x600")
         self.configure(bg="lightgray")
@@ -12,7 +12,7 @@ class WildlifeBotApp(tk.Tk):
         top_frame = tk.Frame(self, bg="white", pady=5)
         top_frame.pack(fill="x")
 
-        logo = tk.Label(top_frame, text="", font=("Arial", 18))
+        logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
         logo.pack(side="left", padx=10)
 
         tk.Button(top_frame, text="Connection setup").pack(side="left", padx=5)
@@ -44,6 +44,7 @@ class WildlifeBotApp(tk.Tk):
         tk.Button(detect_frame, text="Save last 30s audio").pack(pady=5)
         tk.Button(detect_frame, text="Start/End Recording").pack(pady=5)
 
+        # Toggle buttons
         tk.Button(detect_frame, text="Night Vision Toggle").pack(pady=5)
         tk.Button(detect_frame, text="Filter Audio Toggle").pack(pady=5)
         tk.Button(detect_frame, text="Bounding Box Toggle").pack(pady=5)
@@ -65,21 +66,21 @@ class WildlifeBotApp(tk.Tk):
         cam_frame.pack(side="left", padx=10)
 
         tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
-        ttk.Scale(camframe, from=50, to=200, orient="horizontal").grid(row=0, column=1)
+        ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1)
 
         tk.Label(cam_frame, text="Yaw:").grid(row=1, column=0, sticky="w")
-        ttk.Scale(camframe, from=-90, to=90, orient="horizontal").grid(row=1, column=1)
+        ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1)
 
         tk.Label(cam_frame, text="Pitch:").grid(row=2, column=0, sticky="w")
-        ttk.Scale(camframe, from=-90, to=90, orient="horizontal").grid(row=2, column=1)
+        ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=2, column=1)
 
         # Audio Controls
         audio_frame = tk.LabelFrame(controls_frame, text="Audio Controls")
         audio_frame.pack(side="right", padx=10)
 
         tk.Label(audio_frame, text="Volume:").grid(row=0, column=0, sticky="w")
-        ttk.Scale(audioframe, from=0, to=100, orient="horizontal").grid(row=0, column=1)
+        ttk.Scale(audio_frame, from_=0, to=100, orient="horizontal").grid(row=0, column=1)
 
-if name == "main":
+if __name__ == "__main__":
     app = WildlifeBotApp()
     app.mainloop()
