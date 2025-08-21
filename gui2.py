@@ -19,7 +19,7 @@ class WildlifeBotApp(tk.Tk):
         for F in (DeviceControl, ConnectionSetup, Captures):
             frame = F(container, self)
             self.frames[F] = frame
-            frame.config(width=1600, height=800, bd=3, relief="ridge")
+            frame.config(width=1600, height=800)
             #frame.pack_propagate(False)
             frame.grid(row=0, column=0, sticky="nsew")
 
@@ -29,6 +29,8 @@ class WildlifeBotApp(tk.Tk):
     def show_frame(self, screen):
         frame = self.frames[screen]
         frame.tkraise()  # bring the frame to the top
+
+
 
 class DeviceControl(tk.Frame):
     def __init__(self, parent, controller):
@@ -72,9 +74,17 @@ class DeviceControl(tk.Frame):
         detect_frame = tk.LabelFrame(right_frame, text="Creatures Detected")
         detect_frame.pack(side="top", fill="y", padx=10, pady=10)
 
-        creatures = ["Platypus", "Lizard", "Crocodile", "Dove"]
-        for c in creatures:
-            tk.Label(detect_frame, text=f"{c} - 0 samples").pack(anchor="w", padx=10)
+        detect_scrollbar = tk.Scrollbar(detect_frame)
+        detect_scrollbar.pack(side="right", fill="y")
+
+        detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set, height=6)
+        detect_listbox.pack(side="left", fill="none", expand=False)
+
+        detect_scrollbar.config(command=detect_listbox.yview)
+
+        creatures = ["Platypus", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove"]
+        for i in creatures:
+            detect_listbox.insert("end", f"{i}")
 
         # Camera Controls
         cam_frame = tk.LabelFrame(right_frame, text="Camera Controls")
@@ -129,8 +139,17 @@ class DeviceControl(tk.Frame):
         bottom_detect_frame = tk.LabelFrame(bottom_right_frame, text="Creatures Detected")
         bottom_detect_frame.pack(side="top", fill="y", padx=10, pady=10)
 
-        for c in creatures:
-            tk.Label(bottom_detect_frame, text=f"{c} - 0 samples").pack(anchor="w", padx=10)
+        bottom_detect_scrollbar = tk.Scrollbar(bottom_detect_frame)
+        bottom_detect_scrollbar.pack(side="right", fill="y")
+
+        bottom_detect_listbox = tk.Listbox(bottom_detect_frame, yscrollcommand=bottom_detect_scrollbar.set, height=6)
+        bottom_detect_listbox.pack(side="left", fill="none", expand=False)
+
+        bottom_detect_scrollbar.config(command=bottom_detect_listbox.yview)
+
+        creatures = ["Platypus", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove"]
+        for i in creatures:
+            bottom_detect_listbox.insert("end", f"{i}")
 
 
         # Audio Controls
@@ -145,34 +164,59 @@ class DeviceControl(tk.Frame):
 
 
 
-        
-
-
-        
-
-        
 
 # Capture screen
 class Captures(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
-        label = tk.Label(self, text="This is the Captures Screen", font=("Arial", 16))
-        label.pack(pady=20)
 
-        button = tk.Button(self, text="Back to Home",
+        # --- Top Menu Bar ---
+        top_frame = tk.Frame(self, bg="white", pady=5)
+        top_frame.pack(fill="x")
+
+        logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
+        logo.pack(side="left", padx=10)
+
+        connectionsetup_button = tk.Button(top_frame, text="Connection Setup",
+                           command=lambda: controller.show_frame(ConnectionSetup))
+        connectionsetup_button.pack(side="left", padx=5)
+
+        captures_button = tk.Button(top_frame, text="Device Control",
                            command=lambda: controller.show_frame(DeviceControl))
-        button.pack()
+        captures_button.pack(side="left", padx=5)
+
+        tk.Button(top_frame, text="Captures", relief="sunken").pack(side="left", padx=5)
+
+        tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
+
+
+
 
 # Connection Setup Screen
 class ConnectionSetup(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
-        label = tk.Label(self, text="This is the Connection Setup Screen", font=("Arial", 16))
-        label.pack(pady=20)
 
-        button = tk.Button(self, text="Back to Home",
+        # --- Top Menu Bar ---
+        top_frame = tk.Frame(self, bg="white", pady=5)
+        top_frame.pack(fill="x")
+
+        logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
+        logo.pack(side="left", padx=10)
+
+        tk.Button(top_frame, text="Connection Setup", relief="sunken").pack(side="left", padx=5)
+
+        captures_button = tk.Button(top_frame, text="Device Control",
                            command=lambda: controller.show_frame(DeviceControl))
-        button.pack()
+        captures_button.pack(side="left", padx=5)
+
+        connectionsetup_button = tk.Button(top_frame, text="Captures",
+                           command=lambda: controller.show_frame(Captures))
+        connectionsetup_button.pack(side="left", padx=5)
+
+        tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
+
+
 
 if __name__ == "__main__":
     app = WildlifeBotApp()
