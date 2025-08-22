@@ -1,11 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
+from logic import *
 
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Wildlife Bot")
-        ##self.geometry("1600x800")
         self.configure(bg="lightgray")
         self.resizable(False,False)
 
@@ -20,7 +20,6 @@ class WildlifeBotApp(tk.Tk):
             frame = F(container, self)
             self.frames[F] = frame
             frame.config(width=1600, height=800)
-            #frame.pack_propagate(False)
             frame.grid(row=0, column=0, sticky="nsew")
 
         # Show the home screen first
@@ -88,16 +87,16 @@ class DeviceControl(tk.Frame):
 
         # Camera Controls
         cam_frame = tk.LabelFrame(right_frame, text="Camera Controls")
-        cam_frame.pack(side="bottom", padx=10, pady=10)
+        cam_frame.pack(side="bottom", padx=10, pady=10, fill="x")
 
         tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1)
 
-        tk.Label(cam_frame, text="Yaw:").grid(row=1, column=0, sticky="w")
+        tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1)
 
-        tk.Label(cam_frame, text="Pitch:").grid(row=2, column=0, sticky="w")
-        ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=2, column=1)
+        tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
+        ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1)
 
         # button frame
         button_frame = tk.Frame(right_frame, width=250)
@@ -154,7 +153,7 @@ class DeviceControl(tk.Frame):
 
         # Audio Controls
         volumn_frame = tk.LabelFrame(bottom_right_frame, text="Audio Controls")
-        volumn_frame.pack(side="bottom", padx=10, pady=10)
+        volumn_frame.pack(side="bottom", padx=10, pady=10, fill="x")
 
         tk.Label(volumn_frame, text="Vol:").grid(row=0, column=0, sticky="w")
         ttk.Scale(volumn_frame, from_=0, to=100, orient="horizontal").grid(row=0, column=1)
