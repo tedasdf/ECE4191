@@ -73,11 +73,10 @@ def populate_tree(folder, tree, fileext):
             tree.insert("", "end", text=name, values=(last_modified, f"{size:.1f} KB", ext))
 
     except Exception as e:
-        messagebox.showerror("Error", str(e))
+        #messagebox.showerror("Error", str(e))
+        return
 
 def tree_open_file(event, mediadir, tree):
-
-
     selection = tree.selection()
 
     if not selection:
