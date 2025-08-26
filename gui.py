@@ -63,8 +63,11 @@ class DeviceControl(tk.Frame):
         video_frame = tk.LabelFrame(top_frame, text="Camera View", width=600, height=400)
         video_frame.pack_propagate(False)
         video_frame.pack(side="left", padx=10, pady=10)
-        #image_placeholder = tk.Label(image_frame, text="[Camera Feed Placeholder]", bg="white")
-        #image_placeholder.pack(expand=True, fill="both")
+
+        stream_label = tk.Label(video_frame, bd=1, relief="groove")
+        stream_label.pack(padx=10, pady=10)
+        url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
+        stream_video(url, stream_label)
 
         # Right
         right_frame = tk.Frame(top_frame)
@@ -245,7 +248,13 @@ class ConnectionSetup(tk.Frame):
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
+        connection_main_frame = tk.Frame(self)
+        connection_main_frame.pack(fill="both", expand=True)
+        
+        info_frame = tk.LabelFrame(connection_main_frame, text="Connection Information")
+        info_frame.pack(side="top", padx=100, pady=50, fill="both", expand=True)
 
+        tk.Button(connection_main_frame, text="Connect to Stream").pack(side="top", pady=100)
 
 if __name__ == "__main__":
     app = WildlifeBotApp()

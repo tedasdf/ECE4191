@@ -4,13 +4,8 @@ from tkinter import filedialog, messagebox, Listbox
 import datetime
 import platform
 import subprocess
-
-
-def add_numbers(a, b):
-    return a+b
-
-
-
+import cv2
+import PIL.Image, PIL.ImageTk
 
 # ------------Capture screen------------
 
@@ -96,3 +91,24 @@ def tree_open_file(event, mediadir, tree):
     except Exception as e:
         messagebox.showerror("Error", f"Could not open file:\n{e}")    
 
+# ------------Video streaming------------
+
+def stream_video(url, label):
+    # Open the video stream
+    capture = cv2.VideoCapture(url)
+
+    def update_frame():
+        ret, frame = capture.read()
+        if ret:
+            # Convert BGR (OpenCV) → RGB (Pillow)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
+            
+            # Update the label
+            label.imgtk = img
+            label.configure(image=img)
+
+        # Call update again after 15 ms
+        label.after(15, update_frame)
+
+    update_frame()
