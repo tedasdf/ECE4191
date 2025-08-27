@@ -2,6 +2,8 @@ import os
 import tkinter as tk
 from tkinter import ttk
 from functions import *
+from PIL import Image, ImageTk
+import cv2
 
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
@@ -31,7 +33,6 @@ class WildlifeBotApp(tk.Tk):
         frame.tkraise()  # bring the frame to the top
 
 
-
 class DeviceControl(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -55,6 +56,13 @@ class DeviceControl(tk.Frame):
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
+
+
+
+
+
+
+
         # ---Video---
         top_frame = tk.Frame(self)
         top_frame.pack(side="top", padx=10, pady=10)
@@ -64,10 +72,21 @@ class DeviceControl(tk.Frame):
         video_frame.pack_propagate(False)
         video_frame.pack(side="left", padx=10, pady=10)
 
-        stream_label = tk.Label(video_frame, bd=1, relief="groove")
-        stream_label.pack(padx=10, pady=10)
-        url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
-        stream_video(url, stream_label)
+        # stream_label = tk.Label(video_frame, bd=1, relief="groove")
+        # stream_label.pack(padx=10, pady=10)
+        # url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
+        # stream_video(url, stream_label)
+
+
+        self.video_label = tk.Label(video_frame, bd=1, relief="groove")
+        self.video_label.pack(expand=True, fill="both")
+        self.video_label.pack(padx=10, pady=10)
+
+        # OpenCV stream
+        self.cap = cv2.VideoCapture("udp://10.175.112.23:5000")
+        self.update_video()
+
+
 
         # Right
         right_frame = tk.Frame(top_frame)
@@ -164,6 +183,17 @@ class DeviceControl(tk.Frame):
 
         tk.Label(volumn_frame, text="Gain:").grid(row=1, column=0, sticky="w")
         ttk.Scale(volumn_frame, from_=0, to=100, orient="horizontal").grid(row=1, column=1)
+
+    def update_video(self):
+            ret, frame = self.cap.read()
+            if ret:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frame = cv2.resize(frame, (600, 400))  # fit the label size
+                img = Image.fromarray(frame)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.configure(image=imgtk)
+            self.after(30, self.update_video)  # schedule next frame
 
 
 
