@@ -1,20 +1,31 @@
-# sudo apt install pigpio
-# sudo systemctl start pigpiod
-import pigpio, time
-pi = pigpio.pi()
-SERVO = 18   # GPIO18 (Pin 12)
+import lgpio
+import time
 
-def pulse(us):  # set pulse width in microseconds
-    pi.set_servo_pulsewidth(SERVO, us)
+CHIP = 0          # first GPIO chip (/dev/gpiochip0)
+SERVO = 18        # GPIO18 (Pin 12), has hardware PWM
+
+# Open the chip
+h = lgpio.gpiochip_open(CHIP)
+
+# Start PWM: 50 Hz (standard for servos), 7.5% duty = ~1500 µs pulse
+lgpio.tx_pwm(h, SERVO, 50, 7.5)
 
 try:
-    pulse(1500)           # stop
-    time.sleep(1)
-    pulse(1300)           # slow one direction
+    print("Stop (neutral)")
     time.sleep(2)
-    pulse(1700)           # slow other direction
+
+    print("Rotate one way (pulse ~1300µs → ~6.5% duty)")
+    lgpio.tx_pwm(h, SERVO, 50, 6.5)
     time.sleep(2)
-    pulse(0)              # turn off pulses
+
+    print("Rotate other way (pulse ~1700µs → ~8.5% duty)")
+    lgpio.tx_pwm(h, SERVO, 50, 8.5)
+    time.sleep(2)
+
+    print("Stop")
+    lgpio.tx_pwm(h, SERVO, 50, 7.5)
+    time.sleep(2)
+
 finally:
-    pi.set_servo_pulsewidth(SERVO, 0)
-    pi.stop()
+    lgpio.tx_pwm(h, SERVO, 0, 0)      # stop PWM
+    lgpio.gpiochip_close(h)
