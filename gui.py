@@ -83,7 +83,9 @@ class DeviceControl(tk.Frame):
         self.video_label.pack(padx=10, pady=10)
 
         # OpenCV stream
-        self.cap = cv2.VideoCapture("udp://10.175.112.23:5000")
+        url = "http://192.168.77.1:7123/stream.mjpg"
+        url_bigpi = "udp://10.175.112.23:5000"
+        self.cap = cv2.VideoCapture(url)
         self.update_video()
 
 
@@ -284,7 +286,8 @@ class ConnectionSetup(tk.Frame):
         info_frame = tk.LabelFrame(connection_main_frame, text="Connection Information")
         info_frame.pack(side="top", padx=100, pady=50, fill="both", expand=True)
 
-        tk.Button(connection_main_frame, text="Connect to Stream").pack(side="top", pady=100)
+        #connect_button = tk.Button(connection_main_frame, text="Connect to Stream", command=lambda: set_link())
+        #connect_button.pack(side="top", pady=100)
 
 if __name__ == "__main__":
     app = WildlifeBotApp()
