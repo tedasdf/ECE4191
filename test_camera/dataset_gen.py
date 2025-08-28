@@ -4,10 +4,10 @@ import time
 from datetime import datetime
 
 # === SETTINGS ===
-OUTPUT_DIR = "captured_images"
-CAPTURE_INTERVAL = 2  # seconds between captures
-CAMERA_SOURCE = 0     # 0 for default webcam, or your camera index/URL
-CAPTURE_NUM = 100  # Number of images to capture
+OUTPUT_DIR = "bear"
+CAPTURE_INTERVAL = 0.01  # seconds between captures
+CAMERA_SOURCE = 2     # 0 for default webcam, or your camera index/URL
+CAPTURE_NUM = 10000  # Number of images to capture
 
 
 # === SETUP ===
