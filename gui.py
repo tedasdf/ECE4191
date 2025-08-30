@@ -4,8 +4,7 @@ from tkinter import ttk
 from functions import *
 from PIL import Image, ImageTk
 import cv2
-from collections import deque
-import time
+import globals
 
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
@@ -65,24 +64,26 @@ class DeviceControl(tk.Frame):
         top_frame.pack(side="top", padx=10, pady=10)
 
         # Left: Image Placeholder
-        video_frame = tk.LabelFrame(top_frame, text="Camera View", width=600, height=400)
-        video_frame.pack_propagate(False)
-        video_frame.pack(side="left", padx=10, pady=10)
+        self.video_frame = tk.LabelFrame(top_frame, text="Camera View", width=600, height=400)
+        self.video_frame.pack_propagate(False)
+        self.video_frame.pack(side="left", padx=10, pady=10)
 
         # stream_label = tk.Label(video_frame, bd=1, relief="groove")
         # stream_label.pack(padx=10, pady=10)
         # url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
         # stream_video(url, stream_label)
 
-        self.video_label = tk.Label(video_frame, bd=1, relief="groove")
+
+        self.video_label = tk.Label(self.video_frame, bd=1, relief="groove")
         self.video_label.pack(expand=True, fill="both")
         self.video_label.pack(padx=10, pady=10)
 
         # OpenCV stream
-        # self.cap = cv2.VideoCapture("udp://10.175.112.23:5000?fifo_size=500000&overrun_nonfatal=1")
-        self.cap = cv2.VideoCapture("udp://10.175.112.23:5000")
-        # self.cap = cv2.VideoCapture("udp://192.168.21.90:5000")
-        self.update_video()
+        url_bigpi = "udp://10.175.112.23:5000"
+        #self.cap = cv2.VideoCapture(globals.url)
+
+        #self.update_video()
+        #stream_vid(self)
 
 
 
@@ -127,6 +128,7 @@ class DeviceControl(tk.Frame):
         tk.Button(button_frame, text="Start/End Recording", width=18).pack(pady=2)
         tk.Button(button_frame, text="Night Vision Toggle", width=18).pack(pady=2)
         tk.Button(button_frame, text="Bounding Box Toggle", width=18).pack(pady=2)
+        tk.Button(button_frame, text="Start Stream", width=18, bg="white", command=lambda: stream_vid(self)).pack(pady=2)
 
         # ---Audio---
         bottom_frame = tk.Frame(self)
@@ -182,6 +184,7 @@ class DeviceControl(tk.Frame):
         tk.Label(volumn_frame, text="Gain:").grid(row=1, column=0, sticky="w")
         ttk.Scale(volumn_frame, from_=0, to=100, orient="horizontal").grid(row=1, column=1)
 
+'''
     def update_video(self):
             ret, frame = self.cap.read()
             if ret:
@@ -191,8 +194,8 @@ class DeviceControl(tk.Frame):
                 imgtk = ImageTk.PhotoImage(image=img)
                 self.video_label.imgtk = imgtk
                 self.video_label.configure(image=imgtk)
-            self.after(int(1000/self.fps), self.update_video)  # schedule next frame
-
+            self.after(30, self.update_video)  # schedule next frame
+'''
 
 
 
@@ -282,7 +285,19 @@ class ConnectionSetup(tk.Frame):
         info_frame = tk.LabelFrame(connection_main_frame, text="Connection Information")
         info_frame.pack(side="top", padx=100, pady=50, fill="both", expand=True)
 
-        tk.Button(connection_main_frame, text="Connect to Stream").pack(side="top", pady=100)
+        self.url_text = tk.Entry(info_frame, width=70)
+        self.url_text.pack()
+        #self.url_text.insert(0,"http://192.168.77.1:7123/stream.mjpg")
+        self.url_text.insert(0,"https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4")
+        
+
+        self.title = tk.Label(connection_main_frame, text="")
+        self.title.pack(side="top")
+
+        connect_button = tk.Button(connection_main_frame, text="Connect to Stream", command=lambda: set_link(self))
+        connect_button.pack(side="top", pady=100)
+
+
 
 if __name__ == "__main__":
     app = WildlifeBotApp()

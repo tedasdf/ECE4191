@@ -6,6 +6,7 @@ import platform
 import subprocess
 import cv2
 import PIL.Image, PIL.ImageTk
+import globals
 
 # ------------Capture screen------------
 
@@ -91,6 +92,10 @@ def tree_open_file(event, mediadir, tree):
     except Exception as e:
         messagebox.showerror("Error", f"Could not open file:\n{e}")    
 
+
+
+
+
 # ------------Video streaming------------
 
 def stream_video(url, label):
@@ -112,3 +117,32 @@ def stream_video(url, label):
         label.after(15, update_frame)
 
     update_frame()
+
+def stream_vid(app):
+    capture = cv2.VideoCapture(globals.url)
+
+    def update_frame():
+        ret, frame = capture.read()
+        if ret:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.resize(frame, (600, 400))  # fit the label size
+            img = PIL.Image.fromarray(frame)
+            imgtk = PIL.ImageTk.PhotoImage(image=img)
+            app.video_label.imgtk = imgtk
+            app.video_label.configure(image=imgtk)
+        else:
+            messagebox.showerror("Error", "Stream Disconnected")
+            return
+
+        app.video_label.after(15, update_frame)  # schedule next frame
+    
+    update_frame()
+
+
+
+
+# ------------Connections Screen------------
+
+def set_link(app):
+    globals.url = app.url_text.get()
+    app.title.configure(text=globals.url)
