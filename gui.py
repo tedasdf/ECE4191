@@ -4,6 +4,8 @@ from tkinter import ttk
 from functions import *
 from PIL import Image, ImageTk
 import cv2
+from collections import deque
+import time
 
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
@@ -37,6 +39,8 @@ class DeviceControl(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
 
+        self.fps = 25
+
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
         top_frame.pack(fill="x")
@@ -56,13 +60,6 @@ class DeviceControl(tk.Frame):
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
-
-
-
-
-
-
-
         # ---Video---
         top_frame = tk.Frame(self)
         top_frame.pack(side="top", padx=10, pady=10)
@@ -77,13 +74,14 @@ class DeviceControl(tk.Frame):
         # url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
         # stream_video(url, stream_label)
 
-
         self.video_label = tk.Label(video_frame, bd=1, relief="groove")
         self.video_label.pack(expand=True, fill="both")
         self.video_label.pack(padx=10, pady=10)
 
         # OpenCV stream
+        # self.cap = cv2.VideoCapture("udp://10.175.112.23:5000?fifo_size=500000&overrun_nonfatal=1")
         self.cap = cv2.VideoCapture("udp://10.175.112.23:5000")
+        # self.cap = cv2.VideoCapture("udp://192.168.21.90:5000")
         self.update_video()
 
 
@@ -193,7 +191,7 @@ class DeviceControl(tk.Frame):
                 imgtk = ImageTk.PhotoImage(image=img)
                 self.video_label.imgtk = imgtk
                 self.video_label.configure(image=imgtk)
-            self.after(30, self.update_video)  # schedule next frame
+            self.after(int(1000/self.fps), self.update_video)  # schedule next frame
 
 
 
