@@ -119,7 +119,7 @@ def stream_video(url, label):
     update_frame()
 
 def stream_vid(app):
-    capture = cv2.VideoCapture(globals.url)
+    capture = cv2.VideoCapture(globals.video_url)
 
     def update_frame():
         ret, frame = capture.read()

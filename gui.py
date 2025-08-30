@@ -5,6 +5,11 @@ from functions import *
 from PIL import Image, ImageTk
 import cv2
 import globals
+import vlc
+import threading
+import time
+import os
+from collections import deque
 
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
@@ -39,6 +44,8 @@ class DeviceControl(tk.Frame):
         super().__init__(parent)
 
         self.fps = 25
+        self.buffer_seconds = 5  # how many seconds to keep
+        self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)
 
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
@@ -68,10 +75,10 @@ class DeviceControl(tk.Frame):
         self.video_frame.pack_propagate(False)
         self.video_frame.pack(side="left", padx=10, pady=10)
 
-        # stream_label = tk.Label(video_frame, bd=1, relief="groove")
-        # stream_label.pack(padx=10, pady=10)
-        # url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
-        # stream_video(url, stream_label)
+        stream_label = tk.Label(self.video_frame, bd=1, relief="groove")
+        stream_label.pack(padx=10, pady=10)
+        url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
+        stream_video(url, stream_label)
 
 
         self.video_label = tk.Label(self.video_frame, bd=1, relief="groove")
@@ -80,10 +87,10 @@ class DeviceControl(tk.Frame):
 
         # OpenCV stream
         url_bigpi = "udp://10.175.112.23:5000"
-        #self.cap = cv2.VideoCapture(globals.url)
+        self.cap = cv2.VideoCapture(globals.video_url)
 
-        #self.update_video()
-        #stream_vid(self)
+        self.update_video()
+        stream_vid(self)
 
 
 
@@ -116,15 +123,16 @@ class DeviceControl(tk.Frame):
 
         tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1)
-
+ 
         tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1)
 
-        # button frame
+        # button frame 
         button_frame = tk.Frame(right_frame, width=250)
         button_frame.pack(side="top", fill="y")
         
-        tk.Button(button_frame, text="Save last 30s", width=18).pack(pady=2)
+        # tk.Button(button_frame, text="Save last 30s", width=18).pack(pady=2)
+        tk.Button(button_frame, text="Save last 30s", width=18, command=self.save_last_clip).pack(pady=2)
         tk.Button(button_frame, text="Start/End Recording", width=18).pack(pady=2)
         tk.Button(button_frame, text="Night Vision Toggle", width=18).pack(pady=2)
         tk.Button(button_frame, text="Bounding Box Toggle", width=18).pack(pady=2)
@@ -141,8 +149,6 @@ class DeviceControl(tk.Frame):
         audio_frame = tk.LabelFrame(bottom_left_frame, text="Audio Visualisation", width=600, height="150")
         audio_frame.pack_propagate(False)
         audio_frame.pack(side="top", padx=10, pady=10, fill="y")
-        #image_placeholder = tk.Label(image_frame, text="[Camera Feed Placeholder]", bg="white")
-        #image_placeholder.pack(expand=True, fill="both")
         
         # button frame
         bottom_button_frame = tk.Frame(bottom_left_frame, width=250)
@@ -175,27 +181,106 @@ class DeviceControl(tk.Frame):
 
 
         # Audio Controls
-        volumn_frame = tk.LabelFrame(bottom_right_frame, text="Audio Controls")
-        volumn_frame.pack(side="bottom", padx=10, pady=10, fill="x")
+        volume_frame = tk.LabelFrame(bottom_right_frame, text="Audio Controls")
+        volume_frame.pack(side="bottom", padx=10, pady=10, fill="x")
 
-        tk.Label(volumn_frame, text="Vol:").grid(row=0, column=0, sticky="w")
-        ttk.Scale(volumn_frame, from_=0, to=100, orient="horizontal").grid(row=0, column=1)
+        self.volume_slider = tk.Scale(
+            volume_frame,
+            from_=0,
+            to=100,
+            orient="horizontal",
+            label="Volume",
+            command=self.set_volume
+        )
+        self.volume_slider.grid(row=0, column=1)
+        self.volume_slider.set(50)  # Default 50%
 
-        tk.Label(volumn_frame, text="Gain:").grid(row=1, column=0, sticky="w")
-        ttk.Scale(volumn_frame, from_=0, to=100, orient="horizontal").grid(row=1, column=1)
+        # Buttons
+        self.play_button = tk.Button(volume_frame, text="Play Stream", command=self.play_stream)
+        self.play_button.grid(row=1, column=1)
 
-'''
+        self.stop_button = tk.Button(volume_frame, text="Stop Stream", command=self.stop_stream)
+        self.stop_button.grid(row=2, column=2)
+        
+        self.save_recording = tk.Button(volume_frame, text="Save 5s", command=self.record_clip)
+        self.save_recording.grid(row=3, column=2)
+
+        # Audio Stream stuff
+        self.is_playing = False
+        self.STREAM_URL = "http://10.175.112.23:8080"
+        self.OUTPUT_FILE = "audio_clip.ogg"
+
+        # VLC player instance
+        self.instance = vlc.Instance()
+        self.player = self.instance.media_player_new()
+        self.play_stream()
+
+    def play_stream(self):
+        if not self.is_playing:
+            media = self.instance.media_new(self.STREAM_URL)
+            self.player.set_media(media)
+            self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
+            self.player.play()
+            self.is_playing = True
+
+    def stop_stream(self):
+        if self.is_playing:
+            self.player.stop()
+            self.is_playing = False
+
+    def set_volume(self, value):
+        """Update VLC player volume when slider changes."""
+        self.player.audio_set_volume(int(value))
+
+    def record_clip(self):
+        """Save 5 seconds of audio to OUTPUT_FILE."""
+        def _record():
+            # Delete old file if exists
+            if os.path.exists(self.OUTPUT_FILE):
+                os.remove(self.OUTPUT_FILE)
+
+            # Tell VLC to save stream
+            options = f":sout=#file{{dst={self.OUTPUT_FILE}}}"
+            media = self.instance.media_new(self.STREAM_URL, options)
+            recorder = self.instance.media_player_new()
+            recorder.set_media(media)
+
+            recorder.play()
+            time.sleep(5)  # Record for 5 seconds
+            recorder.stop()
+
+            print(f"Saved 5s clip to {self.OUTPUT_FILE}")
+
+        threading.Thread(target=_record, daemon=True).start()
+
     def update_video(self):
-            ret, frame = self.cap.read()
-            if ret:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame = cv2.resize(frame, (600, 400))  # fit the label size
-                img = Image.fromarray(frame)
-                imgtk = ImageTk.PhotoImage(image=img)
-                self.video_label.imgtk = imgtk
-                self.video_label.configure(image=imgtk)
-            self.after(30, self.update_video)  # schedule next frame
-'''
+        ret, frame = self.cap.read()
+        if ret:
+            # store raw frame in buffer for saving later
+            self.frame_buffer.append(frame.copy())
+
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_resized = cv2.resize(frame_rgb, (600, 400))  # fit the label size
+            img = Image.fromarray(frame_resized)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
+        self.after(30, self.update_video)  # schedule next frame
+
+    def save_last_clip(self):
+        if not self.frame_buffer:
+            print("No frames in buffer!")
+            return
+
+        # Define output file
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter("video_clip.mp4", fourcc, self.fps,
+                            (self.frame_buffer[0].shape[1], self.frame_buffer[0].shape[0]))
+
+        for f in list(self.frame_buffer):
+            out.write(f)
+        out.release()
+        print("Saved last 5 seconds of video to video_clip.mp4")
 
 
 
@@ -285,10 +370,10 @@ class ConnectionSetup(tk.Frame):
         info_frame = tk.LabelFrame(connection_main_frame, text="Connection Information")
         info_frame.pack(side="top", padx=100, pady=50, fill="both", expand=True)
 
-        self.url_text = tk.Entry(info_frame, width=70)
-        self.url_text.pack()
+        self.video_url_text = tk.Entry(info_frame, width=70)
+        self.video_url_text.pack()
         #self.url_text.insert(0,"http://192.168.77.1:7123/stream.mjpg")
-        self.url_text.insert(0,"https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4")
+        self.video_url_text.insert(0,"https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4")
         
 
         self.title = tk.Label(connection_main_frame, text="")
