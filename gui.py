@@ -70,28 +70,21 @@ class DeviceControl(tk.Frame):
         top_frame = tk.Frame(self)
         top_frame.pack(side="top", padx=10, pady=10)
 
-        # Left: Image Placeholder
-        self.video_frame = tk.LabelFrame(top_frame, text="Camera View", width=600, height=400)
-        self.video_frame.pack_propagate(False)
+        # Left video frame
+        self.video_frame = tk.LabelFrame(top_frame, text="Camera View")
+        self.video_frame.pack_propagate(True)
         self.video_frame.pack(side="left", padx=10, pady=10)
 
-        stream_label = tk.Label(self.video_frame, bd=1, relief="groove")
-        stream_label.pack(padx=10, pady=10)
-        url="https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
-        stream_video(url, stream_label)
-
-
         self.video_label = tk.Label(self.video_frame, bd=1, relief="groove")
-        self.video_label.pack(expand=True, fill="both")
-        self.video_label.pack(padx=10, pady=10)
+        self.video_label.pack(expand=False, padx=10, pady=10)
+        img = Image.open("stream_standby_image.jpg").resize((600,400))
+        self.stream_standby_photo = ImageTk.PhotoImage(img)
+        self.video_label.config(image=self.stream_standby_photo)
 
         # OpenCV stream
         url_bigpi = "udp://10.175.112.23:5000"
-        self.cap = cv2.VideoCapture(globals.video_url)
-
-        self.update_video()
-        stream_vid(self)
-
+        # self.cap = cv2.VideoCapture(globals.video_url)
+        # stream_vid(self)
 
 
         # Right
@@ -136,7 +129,11 @@ class DeviceControl(tk.Frame):
         tk.Button(button_frame, text="Start/End Recording", width=18).pack(pady=2)
         tk.Button(button_frame, text="Night Vision Toggle", width=18).pack(pady=2)
         tk.Button(button_frame, text="Bounding Box Toggle", width=18).pack(pady=2)
-        tk.Button(button_frame, text="Start Stream", width=18, bg="white", command=lambda: stream_vid(self)).pack(pady=2)
+        
+        self.stream_toggle_button = tk.Button(button_frame, text="Start Stream", width=18, bg="white", command=lambda: stream_toggle(self))
+        self.stream_toggle_button.pack(pady=2)
+
+
 
         # ---Audio---
         bottom_frame = tk.Frame(self)
@@ -181,7 +178,7 @@ class DeviceControl(tk.Frame):
 
 
         # Audio Controls
-        volume_frame = tk.LabelFrame(bottom_right_frame, text="Audio Controls")
+        volume_frame = tk.LabelFrame(bottom_right_frame, text="Volume Control")
         volume_frame.pack(side="bottom", padx=10, pady=10, fill="x")
 
         self.volume_slider = tk.Scale(
@@ -189,21 +186,21 @@ class DeviceControl(tk.Frame):
             from_=0,
             to=100,
             orient="horizontal",
-            label="Volume",
+            # label="Volume",
             command=self.set_volume
         )
-        self.volume_slider.grid(row=0, column=1)
-        self.volume_slider.set(50)  # Default 50%
+        self.volume_slider.pack(expand=True, fill="x")
+        self.volume_slider.set(25)  # Default 50%
 
-        # Buttons
-        self.play_button = tk.Button(volume_frame, text="Play Stream", command=self.play_stream)
-        self.play_button.grid(row=1, column=1)
+        # # Buttons
+        # self.play_button = tk.Button(volume_frame, text="Play Stream", command=self.play_stream)
+        # self.play_button.grid(row=1, column=1)
 
-        self.stop_button = tk.Button(volume_frame, text="Stop Stream", command=self.stop_stream)
-        self.stop_button.grid(row=2, column=2)
+        # self.stop_button = tk.Button(volume_frame, text="Stop Stream", command=self.stop_stream)
+        # self.stop_button.grid(row=2, column=2)
         
-        self.save_recording = tk.Button(volume_frame, text="Save 5s", command=self.record_clip)
-        self.save_recording.grid(row=3, column=2)
+        # self.save_recording = tk.Button(volume_frame, text="Save 5s", command=self.record_clip)
+        # self.save_recording.grid(row=3, column=2)
 
         # Audio Stream stuff
         self.is_playing = False
@@ -253,19 +250,19 @@ class DeviceControl(tk.Frame):
 
         threading.Thread(target=_record, daemon=True).start()
 
-    def update_video(self):
-        ret, frame = self.cap.read()
-        if ret:
-            # store raw frame in buffer for saving later
-            self.frame_buffer.append(frame.copy())
+    # def update_video(self):
+    #     ret, frame = self.cap.read()
+    #     if ret:
+    #         # store raw frame in buffer for saving later
+    #         self.frame_buffer.append(frame.copy())
 
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_resized = cv2.resize(frame_rgb, (600, 400))  # fit the label size
-            img = Image.fromarray(frame_resized)
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.video_label.imgtk = imgtk
-            self.video_label.configure(image=imgtk)
-        self.after(30, self.update_video)  # schedule next frame
+    #         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    #         frame_resized = cv2.resize(frame_rgb, (600, 400))  # fit the label size
+    #         img = Image.fromarray(frame_resized)
+    #         imgtk = ImageTk.PhotoImage(image=img)
+    #         self.video_label.imgtk = imgtk
+    #         self.video_label.configure(image=imgtk)
+    #     self.after(30, self.update_video)  # schedule next frame
 
     def save_last_clip(self):
         if not self.frame_buffer:
@@ -284,7 +281,7 @@ class DeviceControl(tk.Frame):
 
 
 
-# Capture screen
+# Captures screen
 class Captures(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)

@@ -5,7 +5,7 @@ import datetime
 import platform
 import subprocess
 import cv2
-import PIL.Image, PIL.ImageTk
+from PIL import Image, ImageTk
 import globals
 
 # ------------Capture screen------------
@@ -98,45 +98,60 @@ def tree_open_file(event, mediadir, tree):
 
 # ------------Video streaming------------
 
-def stream_video(url, label):
-    # Open the video stream
-    capture = cv2.VideoCapture(url)
+# def stream_video(url, label):
+#     # Open the video stream
+#     capture = cv2.VideoCapture(url)
 
-    def update_frame():
-        ret, frame = capture.read()
-        if ret:
-            # Convert BGR (OpenCV) → RGB (Pillow)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
+#     def update_frame():
+#         ret, frame = capture.read()
+#         if ret:
+#             # Convert BGR (OpenCV) → RGB (Pillow)
+#             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+#             img = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
             
-            # Update the label
-            label.imgtk = img
-            label.configure(image=img)
+#             # Update the label
+#             label.imgtk = img
+#             label.configure(image=img)
 
-        # Call update again after 15 ms
-        label.after(15, update_frame)
+#         # Call update again after 15 ms
+#         label.after(15, update_frame)
 
-    update_frame()
+#     update_frame()
 
-def stream_vid(app):
-    capture = cv2.VideoCapture(globals.video_url)
+
+def stream_toggle(app):
 
     def update_frame():
-        ret, frame = capture.read()
+        ret, frame = globals.capture.read()
         if ret:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.resize(frame, (600, 400))  # fit the label size
-            img = PIL.Image.fromarray(frame)
-            imgtk = PIL.ImageTk.PhotoImage(image=img)
+            #frame = cv2.resize(frame, (600, 400))  # fit the label size
+            img = Image.fromarray(frame)
+            imgtk = ImageTk.PhotoImage(image=img)
             app.video_label.imgtk = imgtk
-            app.video_label.configure(image=imgtk)
+            app.video_label.config(image=imgtk)
         else:
-            messagebox.showerror("Error", "Stream Disconnected")
-            return
+            if globals.streaming:
+                messagebox.showerror("Error", "Stream Disconnected")
+                globals.streaming = False
+                return
 
         app.video_label.after(15, update_frame)  # schedule next frame
-    
-    update_frame()
+
+    if not globals.streaming:
+        # Start video and audio stream if not streaming
+        globals.capture = cv2.VideoCapture(globals.video_url)
+        globals.streaming = True
+        app.stream_toggle_button.config(text="Stop Stream")
+        update_frame()
+    else:
+        # Stop video and audio stream if already streaming
+        globals.streaming = False
+        globals.capture.release()
+        app.stream_toggle_button.config(text="Start Stream")
+        app.video_label.config(image=app.stream_standby_photo)
+
+
 
 
 
@@ -145,4 +160,4 @@ def stream_vid(app):
 
 def set_link(app):
     globals.url = app.url_text.get()
-    app.title.configure(text=globals.url)
+    app.title.config(text=globals.url)
