@@ -16,7 +16,8 @@ class WildlifeBotApp(tk.Tk):
         super().__init__()
         self.title("Wildlife Bot")
         self.configure(bg="lightgray")
-        self.resizable(False,False)
+        # self.resizable(False,False)
+        self.resizable(True, True)
 
         # Container to hold all frames
         container = tk.Frame(self)
@@ -28,10 +29,10 @@ class WildlifeBotApp(tk.Tk):
         for F in (DeviceControl, ConnectionSetup, Captures):
             frame = F(container, self)
             self.frames[F] = frame
-            frame.config(width=1600, height=800)
+            frame.config(width=1600, height=700)
             frame.grid(row=0, column=0, sticky="nsew")
 
-        # Show the home screen first
+        # Show the DeviceControl screen first
         self.show_frame(DeviceControl)
 
     def show_frame(self, screen):
@@ -135,84 +136,72 @@ class DeviceControl(tk.Frame):
 
 
 
-        # ---Audio---
+
+        # ---Audio Section---
         bottom_frame = tk.Frame(self)
-        bottom_frame.pack(side="bottom", padx=10, pady=10)
+        bottom_frame.pack(side="bottom", fill="x", padx=10, pady=10)
 
-        # Left
+        # Left: Audio Visualization + Controls
         bottom_left_frame = tk.Frame(bottom_frame)
-        bottom_left_frame.pack(side="left", fill="both")
+        bottom_left_frame.pack(side="left", fill="both", expand=True)
 
-        audio_frame = tk.LabelFrame(bottom_left_frame, text="Audio Visualisation", width=600, height="150")
+        # Audio Visualisation
+        audio_frame = tk.LabelFrame(bottom_left_frame, text="Audio Visualisation", width=600, height=150)
         audio_frame.pack_propagate(False)
-        audio_frame.pack(side="top", padx=10, pady=10, fill="y")
-        
-        # button frame
-        bottom_button_frame = tk.Frame(bottom_left_frame, width=250)
-        bottom_button_frame.pack(side="top", fill="y")
-        
-        tk.Button(bottom_button_frame, text="Save last 30s", width=18).pack(side="left", padx=2)
-        tk.Button(bottom_button_frame, text="Start/End Recording", width=18).pack(side="left", padx=2)
-        tk.Button(bottom_button_frame, text="Night Vision Toggle", width=18).pack(side="left", padx=2)
-        tk.Button(bottom_button_frame, text="Bounding Box Toggle", width=18).pack(side="left", padx=2)
+        audio_frame.pack(side="top", fill="x", padx=10, pady=5)
 
-        # Right
+        # Audio Buttons + Slider in a single horizontal row
+        controls_frame = tk.Frame(bottom_left_frame)
+        controls_frame.pack(side="top", fill="x", padx=10, pady=5)
+
+        tk.Button(controls_frame, text="Save 5s", command=self.record_audio_clip, width=12).pack(side="left", padx=2)
+        tk.Button(controls_frame, text="Play Stream", command=self.play_audio_stream, width=12).pack(side="left", padx=2)
+        tk.Button(controls_frame, text="Stop Stream", command=self.stop_audio_stream, width=12).pack(side="left", padx=2)
+
+        self.volume_slider = tk.Scale(
+            controls_frame,
+            from_=0,
+            to=100,
+            orient="horizontal",
+            # label="Volume",
+            command=self.set_volume,
+            length=200
+        )
+        self.volume_slider.pack(side="left", padx=10)
+        self.volume_slider.set(50)  # default volume
+
+        # Right: Detected Creatures
         bottom_right_frame = tk.Frame(bottom_frame)
-        bottom_right_frame.pack(side="right", fill="both")
+        bottom_right_frame.pack(side="right", fill="both", expand=True)
 
-        # detect frame
         bottom_detect_frame = tk.LabelFrame(bottom_right_frame, text="Creatures Detected")
-        bottom_detect_frame.pack(side="top", fill="y", padx=10, pady=10)
+        bottom_detect_frame.pack(side="top", fill="y", padx=10, pady=5)
 
         bottom_detect_scrollbar = tk.Scrollbar(bottom_detect_frame)
         bottom_detect_scrollbar.pack(side="right", fill="y")
 
         bottom_detect_listbox = tk.Listbox(bottom_detect_frame, yscrollcommand=bottom_detect_scrollbar.set, height=6)
-        bottom_detect_listbox.pack(side="left", fill="none", expand=False)
+        bottom_detect_listbox.pack(side="left", fill="both", expand=True)
 
         bottom_detect_scrollbar.config(command=bottom_detect_listbox.yview)
 
-        creatures = ["Platypus", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove"]
-        for i in creatures:
-            bottom_detect_listbox.insert("end", f"{i}")
+        creatures = ["Platypus", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove",
+                    "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove"]
+        for c in creatures:
+            bottom_detect_listbox.insert("end", c)
 
-
-        # Audio Controls
-        volume_frame = tk.LabelFrame(bottom_right_frame, text="Volume Control")
-        volume_frame.pack(side="bottom", padx=10, pady=10, fill="x")
-
-        self.volume_slider = tk.Scale(
-            volume_frame,
-            from_=0,
-            to=100,
-            orient="horizontal",
-            # label="Volume",
-            command=self.set_volume
-        )
-        self.volume_slider.pack(expand=True, fill="x")
-        self.volume_slider.set(25)  # Default 50%
-
-        # # Buttons
-        # self.play_button = tk.Button(volume_frame, text="Play Stream", command=self.play_stream)
-        # self.play_button.grid(row=1, column=1)
-
-        # self.stop_button = tk.Button(volume_frame, text="Stop Stream", command=self.stop_stream)
-        # self.stop_button.grid(row=2, column=2)
-        
-        # self.save_recording = tk.Button(volume_frame, text="Save 5s", command=self.record_clip)
-        # self.save_recording.grid(row=3, column=2)
 
         # Audio Stream stuff
         self.is_playing = False
         self.STREAM_URL = "http://10.175.112.23:8080"
-        self.OUTPUT_FILE = "audio_clip.ogg"
+        self.AUDIO_OUTPUT_FILE = "media/audio_clip.ogg"
 
         # VLC player instance
         self.instance = vlc.Instance()
         self.player = self.instance.media_player_new()
-        self.play_stream()
+        self.play_audio_stream()
 
-    def play_stream(self):
+    def play_audio_stream(self):
         if not self.is_playing:
             media = self.instance.media_new(self.STREAM_URL)
             self.player.set_media(media)
@@ -220,7 +209,7 @@ class DeviceControl(tk.Frame):
             self.player.play()
             self.is_playing = True
 
-    def stop_stream(self):
+    def stop_audio_stream(self):
         if self.is_playing:
             self.player.stop()
             self.is_playing = False
@@ -229,15 +218,15 @@ class DeviceControl(tk.Frame):
         """Update VLC player volume when slider changes."""
         self.player.audio_set_volume(int(value))
 
-    def record_clip(self):
-        """Save 5 seconds of audio to OUTPUT_FILE."""
+    def record_audio_clip(self):
+        """Save 5 seconds of audio to AUDIO_OUTPUT_FILE."""
         def _record():
             # Delete old file if exists
-            if os.path.exists(self.OUTPUT_FILE):
-                os.remove(self.OUTPUT_FILE)
+            if os.path.exists(self.AUDIO_OUTPUT_FILE):
+                os.remove(self.AUDIO_OUTPUT_FILE)
 
             # Tell VLC to save stream
-            options = f":sout=#file{{dst={self.OUTPUT_FILE}}}"
+            options = f":sout=#file{{dst={self.AUDIO_OUTPUT_FILE}}}"
             media = self.instance.media_new(self.STREAM_URL, options)
             recorder = self.instance.media_player_new()
             recorder.set_media(media)
@@ -246,7 +235,7 @@ class DeviceControl(tk.Frame):
             time.sleep(5)  # Record for 5 seconds
             recorder.stop()
 
-            print(f"Saved 5s clip to {self.OUTPUT_FILE}")
+            print(f"Saved 5s clip to {self.AUDIO_OUTPUT_FILE}")
 
         threading.Thread(target=_record, daemon=True).start()
 
@@ -271,7 +260,7 @@ class DeviceControl(tk.Frame):
 
         # Define output file
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter("video_clip.mp4", fourcc, self.fps,
+        out = cv2.VideoWriter("media/video_clip.mp4", fourcc, self.fps,
                             (self.frame_buffer[0].shape[1], self.frame_buffer[0].shape[0]))
 
         for f in list(self.frame_buffer):
