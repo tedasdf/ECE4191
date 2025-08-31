@@ -159,5 +159,5 @@ def stream_toggle(app):
 # ------------Connections Screen------------
 
 def set_link(app):
-    globals.url = app.url_text.get()
-    app.title.config(text=globals.url)
+    globals.video_url = app.video_url_text.get()
+    app.title.config(text=globals.video_url)
