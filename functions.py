@@ -157,8 +157,6 @@ def stream_toggle(app):
 
 
 
-
-
 # ------------Connections Screen------------
 
 def set_link(app):
