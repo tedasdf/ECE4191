@@ -82,12 +82,6 @@ class DeviceControl(tk.Frame):
         self.stream_standby_photo = ImageTk.PhotoImage(img)
         self.video_label.config(image=self.stream_standby_photo)
 
-        # OpenCV stream
-        url_bigpi = "udp://10.175.112.23:5000"
-        # self.cap = cv2.VideoCapture(globals.video_url)
-        # stream_vid(self)
-
-
         # Right
         right_frame = tk.Frame(top_frame)
         right_frame.pack(side="right", fill="both")
@@ -133,8 +127,6 @@ class DeviceControl(tk.Frame):
         
         self.stream_toggle_button = tk.Button(button_frame, text="Start Stream", width=18, bg="white", command=lambda: stream_toggle(self))
         self.stream_toggle_button.pack(pady=2)
-
-
 
 
         # ---Audio Section---
