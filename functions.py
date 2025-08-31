@@ -130,13 +130,16 @@ def stream_toggle(app):
             imgtk = ImageTk.PhotoImage(image=img)
             app.video_label.imgtk = imgtk
             app.video_label.config(image=imgtk)
+            app.video_label.after(15, update_frame)  # schedule next frame
         else:
             if globals.streaming:
                 messagebox.showerror("Error", "Stream Disconnected")
                 globals.streaming = False
+                app.stream_toggle_button.config(text="Start Stream")
+                app.video_label.config(image=app.stream_standby_photo)
                 return
 
-        app.video_label.after(15, update_frame)  # schedule next frame
+        
 
     if not globals.streaming:
         # Start video and audio stream if not streaming
