@@ -142,60 +142,42 @@ class DeviceControl(tk.Frame):
         audio_frame.pack_propagate(False)
         audio_frame.pack(side="top", fill="x", padx=10, pady=5)
 
-        # Audio Buttons + Slider in a single horizontal row
-        controls_frame = tk.Frame(bottom_left_frame)
-        controls_frame.pack(side="top", fill="x", padx=10, pady=5)
 
-        tk.Button(controls_frame, text="Save 5s", command=self.record_audio_clip, width=12).pack(side="left", padx=2)
-        tk.Button(controls_frame, text="Play Stream", command=self.play_audio_stream, width=12).pack(side="left", padx=2)
-        tk.Button(controls_frame, text="Stop Stream", command=self.stop_audio_stream, width=12).pack(side="left", padx=2)
+        #Bottom Right: audio controls
+        bottom_right_frame = tk.Frame(bottom_frame)
+        bottom_right_frame.pack(side="right", fill="both", expand=True)
+
+        # Audio Buttons + Slider in a single horizontal row
+        controls_frame = tk.Frame(bottom_right_frame)
+        controls_frame.pack(side="top", fill="y", padx=10, pady=5)
+
+        tk.Button(controls_frame, text="Save 5s", command=self.record_audio_clip, width=12).pack(pady=2)
+        tk.Button(controls_frame, text="Play Stream", command=self.play_audio_stream, width=12).pack(pady=2)
+        tk.Button(controls_frame, text="Stop Stream", command=self.stop_audio_stream, width=12).pack(padx=2)
 
         self.volume_slider = tk.Scale(
             controls_frame,
             from_=0,
             to=100,
             orient="horizontal",
-            # label="Volume",
+            label="Volume",
             command=self.set_volume,
             length=200
         )
-        self.volume_slider.pack(side="left", padx=10)
+        self.volume_slider.pack(pady=2)
         self.volume_slider.set(50)  # default volume
-
-        # Right: Detected Creatures
-        bottom_right_frame = tk.Frame(bottom_frame)
-        bottom_right_frame.pack(side="right", fill="both", expand=True)
-
-        bottom_detect_frame = tk.LabelFrame(bottom_right_frame, text="Creatures Detected")
-        bottom_detect_frame.pack(side="top", fill="y", padx=10, pady=5)
-
-        bottom_detect_scrollbar = tk.Scrollbar(bottom_detect_frame)
-        bottom_detect_scrollbar.pack(side="right", fill="y")
-
-        bottom_detect_listbox = tk.Listbox(bottom_detect_frame, yscrollcommand=bottom_detect_scrollbar.set, height=6)
-        bottom_detect_listbox.pack(side="left", fill="both", expand=True)
-
-        bottom_detect_scrollbar.config(command=bottom_detect_listbox.yview)
-
-        creatures = ["Platypus", "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove",
-                    "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove"]
-        for c in creatures:
-            bottom_detect_listbox.insert("end", c)
-
 
         # Audio Stream stuff
         self.is_playing = False
-        self.STREAM_URL = "http://10.175.112.23:8080"
         self.AUDIO_OUTPUT_FILE = "media/audio_clip.ogg"
 
         # VLC player instance
         self.instance = vlc.Instance()
         self.player = self.instance.media_player_new()
-        self.play_audio_stream()
 
     def play_audio_stream(self):
         if not self.is_playing:
-            media = self.instance.media_new(self.STREAM_URL)
+            media = self.instance.media_new(globals.audio_url)
             self.player.set_media(media)
             self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
             self.player.play()
@@ -230,20 +212,6 @@ class DeviceControl(tk.Frame):
             print(f"Saved 5s clip to {self.AUDIO_OUTPUT_FILE}")
 
         threading.Thread(target=_record, daemon=True).start()
-
-    # def update_video(self):
-    #     ret, frame = self.cap.read()
-    #     if ret:
-    #         # store raw frame in buffer for saving later
-    #         self.frame_buffer.append(frame.copy())
-
-    #         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    #         frame_resized = cv2.resize(frame_rgb, (600, 400))  # fit the label size
-    #         img = Image.fromarray(frame_resized)
-    #         imgtk = ImageTk.PhotoImage(image=img)
-    #         self.video_label.imgtk = imgtk
-    #         self.video_label.configure(image=imgtk)
-    #     self.after(30, self.update_video)  # schedule next frame
 
     def save_last_clip(self):
         if not self.frame_buffer:
@@ -315,9 +283,6 @@ class Captures(tk.Frame):
 
 
 
-
-
-
 # Connection Setup Screen
 class ConnectionSetup(tk.Frame):
     def __init__(self, parent, controller):
@@ -350,8 +315,7 @@ class ConnectionSetup(tk.Frame):
 
         self.video_url_text = tk.Entry(info_frame, width=70)
         self.video_url_text.pack()
-        #self.url_text.insert(0,"http://192.168.77.1:7123/stream.mjpg")
-        self.video_url_text.insert(0,"https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4")
+        self.video_url_text.insert(0, globals.video_url) #"https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
         
 
         self.title = tk.Label(connection_main_frame, text="")
