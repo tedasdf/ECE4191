@@ -94,8 +94,6 @@ def tree_open_file(event, mediadir, tree):
 
 
 
-
-
 # ------------Video streaming------------
 
 # def stream_video(url, label):
