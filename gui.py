@@ -306,18 +306,20 @@ class DeviceControl(tk.Frame):
         if not self.recorded_frames:
             print("No frames recorded!")
             return
+        
+        output_file = self.name_output_file(self.recorded_video_file)
 
         # Save video
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         height, width = self.recorded_frames[0].shape[:2]
-        out = cv2.VideoWriter(self.recorded_video_file, fourcc, self.fps, (width, height))
+        out = cv2.VideoWriter(output_file, fourcc, self.fps, (width, height))
         for f in self.recorded_frames:
             out.write(f)
         out.release()
-        print(f"Video saved to {self.recorded_video_file}")
+        # print(f"Video saved to {output_file}")
 
         # Audio is already saved by VLC to self.recorded_audio_file
-        print(f"Audio saved to {self.recorded_audio_file}")
+        # print(f"Audio saved to {self.recorded_audio_file}")
 
 
     # Save last 30 seconds of audio functions

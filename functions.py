@@ -132,13 +132,13 @@ def stream_toggle(app):
             app.video_label.config(image=imgtk)
             app.video_label.after(25, update_frame)  # schedule next frame
             app.frame_buffer.append(frame.copy())
-        else:
-            if globals.streaming:
-                messagebox.showerror("Error", "Stream Disconnected")
-                globals.streaming = False
-                app.stream_toggle_button.config(text="Start Stream")
-                app.video_label.config(image=app.stream_standby_photo)
-                return
+        # else:
+        #     if globals.streaming:
+        #         messagebox.showerror("Error", "Stream Disconnected")
+        #         globals.streaming = False
+        #         app.stream_toggle_button.config(text="Start Stream")
+        #         app.video_label.config(image=app.stream_standby_photo)
+        #         return
 
         
 
