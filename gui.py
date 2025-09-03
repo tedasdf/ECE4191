@@ -50,6 +50,17 @@ class DeviceControl(tk.Frame):
         self.buffer_seconds = 30  # how many seconds to keep for save past clip functionality
         self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)    # where frames for the past clip are stored
 
+        # audio buffer stuff
+        # Audio Stream stuff
+        self.is_playing = False
+        self.AUDIO_OUTPUT_FILE = "media/audio_clip.ogg"
+        self.audio_buffer_seconds = 5  # how many seconds to keep
+        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * 25)  # assuming 25 fps sampling chunks
+        self.audio_temp_file = "media/temp_audio.ogg"
+        self.last_audio_clip_file = "media/audio_clip.ogg"
+        threading.Thread(target=self._audio_capture_loop, daemon=True).start()
+
+
         # variables to control the live recording function
         self.recording = False
         self.record_start_time = None
@@ -151,11 +162,13 @@ class DeviceControl(tk.Frame):
         )
 
         tk.Button(button_frame, text="Save last 30s of video", width=18, command=self.save_last_clip).grid(row=0, column=0, sticky="nsew")
-        tk.Button(button_frame, text="Save last 30s of Audio", width=18, command=self.record_audio_clip).grid(row=0, column=1, sticky="nsew")
+        tk.Button(button_frame, text="Save last 30s of Audio", width=18, command=self.save_last_audio_clip).grid(row=0, column=1, sticky="nsew")
         self.record_button.grid(row=0, column=2, sticky="nsew")
         self.stream_toggle_button.grid(row=1, column=0, sticky="nsew")
         tk.Button(button_frame, text="Audio filter toggle", width=18).grid(row=1, column=1, sticky="nsew")
         tk.Button(button_frame, text="Bounding Box Toggle", width=18).grid(row=1, column=2, sticky="nsew")
+
+        # tk.Button(controls_frame, text="Save Last 5s Audio", width=12, command=self.save_last_audio_clip).pack(pady=2)
 
         # tk.Button(controls_frame, text="Save 5s", command=self.record_audio_clip, width=12).pack(pady=2)
         # tk.Button(controls_frame, text="Play Stream", command=self.play_audio_stream, width=12).pack(pady=2)
@@ -190,9 +203,6 @@ class DeviceControl(tk.Frame):
         self.instance = vlc.Instance('--quiet')
         self.player = self.instance.media_player_new()
 
-        # Audio Stream stuff
-        self.is_playing = False
-        self.AUDIO_OUTPUT_FILE = "media/audio_clip.ogg"
 
         
     def play_audio_stream(self):
@@ -302,6 +312,46 @@ class DeviceControl(tk.Frame):
 
         # Audio is already saved by VLC to self.recorded_audio_file
         print(f"Audio saved to {self.recorded_audio_file}")
+
+
+    # Save last 30 seconds of audio functions
+    def _audio_capture_loop(self):
+        """
+        Continuously capture short chunks of audio into a rolling buffer.
+        """
+        while True:
+            if globals.streaming: # self.is_playing:  # or however you know the stream is active
+                # Save a small chunk temporarily
+                if os.path.exists(self.audio_temp_file):
+                    os.remove(self.audio_temp_file)
+
+                options = f":sout=#file{{dst={self.audio_temp_file}}}"
+                media = self.instance.media_new(globals.audio_url, options)
+                recorder = self.instance.media_player_new()
+                recorder.set_media(media)
+                recorder.play()
+                time.sleep(0.2)  # capture 0.2 seconds of audio
+                recorder.stop()
+
+                # Store chunk in buffer
+                self.audio_buffer.append(self.audio_temp_file)
+            time.sleep(0.05)
+
+
+    def save_last_audio_clip(self):
+        if not self.audio_buffer:
+            print("No audio in buffer!")
+            return
+
+        # Concatenate the chunks in the buffer into a single file
+        with open(self.last_audio_clip_file, "wb") as outfile:
+            for chunk_file in list(self.audio_buffer):
+                with open(chunk_file, "rb") as infile:
+                    outfile.write(infile.read())
+
+        print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {self.last_audio_clip_file}")
+
+
 
 
 class Captures(tk.Frame):
