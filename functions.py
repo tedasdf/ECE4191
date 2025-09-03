@@ -13,7 +13,7 @@ import datetime
 # ------------Capture screen------------
 
 VIDEO_EXTS = [".mp4", ".mkv", ".avi", ".mov"]
-AUDIO_EXTS = [".mp3", ".wav", ".flac", ".aac"]
+AUDIO_EXTS = [".mp3", ".wav", ".flac", ".aac", ".ogg"]
 IMAGE_EXTS = [".jpg", ".jpeg", ".png"]
 ALL_EXTS = VIDEO_EXTS + AUDIO_EXTS + IMAGE_EXTS
 
