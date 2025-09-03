@@ -57,7 +57,7 @@ class DeviceControl(tk.Frame):
 
         # audio buffer stuff
         # Audio Stream stuff
-        self.AUDIO_OUTPUT_FILE = f"media/recorded_audio.ogg"
+        self.AUDIO_OUTPUT_FILE = "media/audio_clip.ogg"
 
         # self.audio_temp_file = "media/temp_audio.ogg"
 
@@ -65,7 +65,7 @@ class DeviceControl(tk.Frame):
         self.audio_sample_rate = 44100
         self.audio_channels = 2
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
-        self.last_audio_clip_file = f"media/recorded_audio.wav"
+        self.last_audio_clip_file = "media/audio_clip.wav"
 
         # Start the audio capture in a background thread
         threading.Thread(target=self._audio_capture_loop, daemon=True).start()
@@ -76,11 +76,9 @@ class DeviceControl(tk.Frame):
         self.record_start_time = None
         self.max_record_seconds = 60
         self.recorded_frames = deque(maxlen=self.fps * self.max_record_seconds)
-        self.recorded_audio_file = f"media/recorded_audio.ogg"
-        self.recorded_video_file = f"media/recorded_video.mp4"
+        self.recorded_audio_file = f"media/recorded_audio_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.ogg"
+        self.recorded_video_file = f"media/recorded_video_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.mp4"
         self.record_thread = None
-
-        print(self.name_output_file("test.wav"))
 
 
         # --- Top Menu Bar ---
@@ -204,9 +202,7 @@ class DeviceControl(tk.Frame):
         self.instance = vlc.Instance('--quiet')
         self.player = self.instance.media_player_new()
 
-    def name_output_file(self, str):
-        bits = str.split(".")
-        return f"{bits[0]}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')}.{bits[1]}"
+
         
     def play_audio_stream(self):
         media = self.instance.media_new(globals.audio_url)
@@ -225,33 +221,31 @@ class DeviceControl(tk.Frame):
 
     def record_audio_clip(self):
         def _record():
-            output_file = self.name_output_file(self.AUDIO_OUTPUT_FILE)
-            if os.path.exists(output_file):
-                os.remove(output_file)
-            options = f":sout=#file{{dst={output_file}}}"
+            if os.path.exists(self.AUDIO_OUTPUT_FILE):
+                os.remove(self.AUDIO_OUTPUT_FILE)
+            options = f":sout=#file{{dst={self.AUDIO_OUTPUT_FILE}}}"
             media = self.instance.media_new(globals.audio_url, options)
             recorder = self.instance.media_player_new()
             recorder.set_media(media)
             recorder.play()
             time.sleep(5)
             recorder.stop()
-            print(f"Saved 5s clip to {output_file}")
+            print(f"Saved 5s clip to {self.AUDIO_OUTPUT_FILE}")
 
         threading.Thread(target=_record, daemon=True).start()
 
 
     def save_last_clip(self):
-        output_file = self.name_output_file("media/video_clip.mp4")
         if not self.frame_buffer:
             print("No frames in buffer!")
             return 0
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_file, fourcc, self.fps,
+        out = cv2.VideoWriter(f"media/video_clip_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.mp4", fourcc, self.fps,
                               (self.frame_buffer[0].shape[1], self.frame_buffer[0].shape[0]))
         for f in list(self.frame_buffer):
             out.write(f)
         out.release()
-        print(f"Saved last 30 seconds of video to {output_file}")
+        print("Saved last 30 seconds of video to video_clip.mp4")
         return 1
     
     
@@ -283,8 +277,7 @@ class DeviceControl(tk.Frame):
         Stops automatically after self.max_record_seconds.
         """
         # Optional: Record audio via VLC stream
-        output_file = self.name_output_file(self.recorded_audio_file)
-        options = f":sout=#file{{dst={output_file}}}"
+        options = f":sout=#file{{dst={self.recorded_audio_file}}}"
         media = self.instance.media_new(globals.audio_url, options)
         recorder = self.instance.media_player_new()
         recorder.set_media(media)
@@ -355,16 +348,14 @@ class DeviceControl(tk.Frame):
         # Convert float32 (-1.0 to 1.0) to 16-bit PCM
         pcm_data = (data * 32767).astype(np.int16)
 
-        write_file = self.name_output_file(self.last_audio_clip_file)
-
         # Write to WAV file
-        with wave.open(write_file, "wb") as wf:
+        with wave.open(self.last_audio_clip_file, "wb") as wf:
             wf.setnchannels(self.audio_channels)
             wf.setsampwidth(2)  # 16-bit
             wf.setframerate(self.audio_sample_rate)
             wf.writeframes(pcm_data.tobytes())
 
-        print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
+        print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {self.last_audio_clip_file}")
 
 
 
