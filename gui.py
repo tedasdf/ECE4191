@@ -18,10 +18,15 @@ class WildlifeBotApp(tk.Tk):
         self.configure(bg="lightgray")
         # self.resizable(False,False)
         self.resizable(True, True)
+        self.minsize(800,700)
+        self.maxsize(1200,1000)
+
 
         # Container to hold all frames
         container = tk.Frame(self)
         container.pack(fill="both", expand=True)
+        container.grid_rowconfigure(0, weight=1) 
+        container.grid_columnconfigure(0, weight=1)
 
         self.frames = {}  # store references to frames
 
@@ -29,7 +34,7 @@ class WildlifeBotApp(tk.Tk):
         for F in (DeviceControl, ConnectionSetup, Captures):
             frame = F(container, self)
             self.frames[F] = frame
-            frame.config(width=1600, height=700)
+            # frame.config(width=1600, height=700)
             frame.grid(row=0, column=0, sticky="nsew")
 
         # Show the DeviceControl screen first
@@ -50,7 +55,7 @@ class DeviceControl(tk.Frame):
 
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
-        top_frame.pack(fill="x")
+        top_frame.pack(side="top", fill="x", expand=False)
 
         logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
         logo.pack(side="left", padx=10)
@@ -68,22 +73,22 @@ class DeviceControl(tk.Frame):
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
         # ---Video---
-        top_frame = tk.Frame(self)
-        top_frame.pack(side="top", padx=10, pady=10)
+        main_frame = tk.Frame(self)
+        main_frame.pack(side="top", padx=10, pady=10, expand=True, fill="both")
 
         # Left video frame
-        self.video_frame = tk.LabelFrame(top_frame, text="Camera View")
-        self.video_frame.pack_propagate(True)
-        self.video_frame.pack(side="left", padx=10, pady=10)
+        self.video_frame = tk.LabelFrame(main_frame, text="Camera View")
+        # self.video_frame.pack_propagate(True)
+        self.video_frame.pack(side="left", padx=10, pady=10, fill="both", expand=True)
 
         self.video_label = tk.Label(self.video_frame, bd=1, relief="groove")
-        self.video_label.pack(expand=False, padx=10, pady=10)
+        self.video_label.pack(expand=True, padx=10, pady=10)
         img = Image.open("stream_standby_image.jpg").resize((600,400))
         self.stream_standby_photo = ImageTk.PhotoImage(img)
         self.video_label.config(image=self.stream_standby_photo)
 
         # Right
-        right_frame = tk.Frame(top_frame)
+        right_frame = tk.Frame(main_frame)
         right_frame.pack(side="right", fill="both")
 
         # detect frame
@@ -237,7 +242,7 @@ class Captures(tk.Frame):
 
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
-        top_frame.pack(fill="x")
+        top_frame.pack(side="top", fill="x", expand=False)
 
         logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
         logo.pack(side="left", padx=10)
@@ -290,7 +295,7 @@ class ConnectionSetup(tk.Frame):
 
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
-        top_frame.pack(fill="x")
+        top_frame.pack(side="top", fill="x", expand=False)
 
         logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
         logo.pack(side="left", padx=10)
