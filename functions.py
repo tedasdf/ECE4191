@@ -7,6 +7,8 @@ import subprocess
 import cv2
 from PIL import Image, ImageTk
 import globals
+import time
+import datetime
 
 # ------------Capture screen------------
 
@@ -128,7 +130,7 @@ def stream_toggle(app):
             imgtk = ImageTk.PhotoImage(image=img)
             app.video_label.imgtk = imgtk
             app.video_label.config(image=imgtk)
-            app.video_label.after(15, update_frame)  # schedule next frame
+            app.video_label.after(25, update_frame)  # schedule next frame
             app.frame_buffer.append(frame.copy())
         else:
             if globals.streaming:
@@ -162,4 +164,5 @@ def stream_toggle(app):
 
 def set_link(app):
     globals.video_url = app.video_url_text.get()
-    app.title.config(text=globals.video_url)
+    globals.audio_url = app.audio_url_text.get()
+    app.title.config(text=f"Stream link updated at {datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}")

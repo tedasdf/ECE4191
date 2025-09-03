@@ -8,6 +8,7 @@ import globals
 import vlc
 import threading
 import time
+import datetime
 from collections import deque
 
 
@@ -66,8 +67,8 @@ class DeviceControl(tk.Frame):
         self.record_start_time = None
         self.max_record_seconds = 60
         self.recorded_frames = deque(maxlen=self.fps * self.max_record_seconds)
-        self.recorded_audio_file = "media/recorded_audio.ogg"
-        self.recorded_video_file = "media/recorded_video.mp4"
+        self.recorded_audio_file = f"media/recorded_audio_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.ogg"
+        self.recorded_video_file = f"media/recorded_video_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.mp4"
         self.record_thread = None
 
 
@@ -241,7 +242,7 @@ class DeviceControl(tk.Frame):
             print("No frames in buffer!")
             return 0
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter("media/video_clip.mp4", fourcc, self.fps,
+        out = cv2.VideoWriter(f"media/video_clip_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.mp4", fourcc, self.fps,
                               (self.frame_buffer[0].shape[1], self.frame_buffer[0].shape[0]))
         for f in list(self.frame_buffer):
             out.write(f)
@@ -379,6 +380,7 @@ class Captures(tk.Frame):
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
+        # file browser
         main_frame = tk.Frame(self)
         main_frame.pack(fill="both", expand=True)
 
@@ -425,15 +427,24 @@ class ConnectionSetup(tk.Frame):
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
+        # frame for URL connections
         connection_main_frame = tk.Frame(self)
         connection_main_frame.pack(fill="both", expand=True)
 
         info_frame = tk.LabelFrame(connection_main_frame, text="Connection Information")
-        info_frame.pack(side="top", padx=100, pady=50, fill="both", expand=True)
+        info_frame.pack(side="top", padx=10, pady=10, fill="both")
+        
 
+        # video url section
+        tk.Label(info_frame, text="Video stream URL:").pack(padx=10)
         self.video_url_text = tk.Entry(info_frame)
         self.video_url_text.pack(fill="x", padx=10, pady=10)
         self.video_url_text.insert(0, globals.video_url)
+
+        tk.Label(info_frame, text="Audio stream URL:").pack(padx=10)
+        self.audio_url_text = tk.Entry(info_frame)
+        self.audio_url_text.pack(fill="x", padx=10, pady=10)
+        self.audio_url_text.insert(0, globals.audio_url)
 
         self.title = tk.Label(connection_main_frame, text="")
         self.title.pack(side="top")
