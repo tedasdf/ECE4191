@@ -399,6 +399,9 @@ class Captures(tk.Frame):
         main_frame = tk.Frame(self)
         main_frame.pack(fill="both", expand=True)
 
+        refresh_button = tk.Button(main_frame, text="Refresh", command=lambda:populate_tree(media_dir, files_tree, ALL_EXTS))
+        refresh_button.pack(side="top", padx=10, pady=10)
+
         files_tree = ttk.Treeview(main_frame, columns=("time", "size", "type"), show="tree headings")
         files_tree.pack(fill="both", expand=True, padx=20, pady=20)
 
