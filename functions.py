@@ -131,6 +131,7 @@ def stream_toggle(app):
             app.video_label.imgtk = imgtk
             app.video_label.config(image=imgtk)
             app.video_label.after(15, update_frame)  # schedule next frame
+            app.frame_buffer.append(frame.copy())
         else:
             if globals.streaming:
                 messagebox.showerror("Error", "Stream Disconnected")
@@ -145,12 +146,14 @@ def stream_toggle(app):
         # Start video and audio stream if not streaming
         globals.capture = cv2.VideoCapture(globals.video_url)
         globals.streaming = True
+        app.play_audio_stream()
         app.stream_toggle_button.config(text="Stop Stream")
         update_frame()
     else:
         # Stop video and audio stream if already streaming
         globals.streaming = False
         globals.capture.release()
+        app.stop_audio_stream()
         app.stream_toggle_button.config(text="Start Stream")
         app.video_label.config(image=app.stream_standby_photo)
 
