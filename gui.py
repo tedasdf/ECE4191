@@ -321,7 +321,6 @@ class DeviceControl(tk.Frame):
         # Audio is already saved by VLC to self.recorded_audio_file
         # print(f"Audio saved to {self.recorded_audio_file}")
 
-
     # Save last 30 seconds of audio functions
     def _audio_capture_loop(self):
         """
