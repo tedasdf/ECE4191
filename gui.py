@@ -158,7 +158,7 @@ class DeviceControl(tk.Frame):
 
         # button frame
         button_frame = tk.Frame(right_frame)
-        button_frame.pack(side="top", fill="x")
+        button_frame.pack(side="top", fill="x", expand=True)
 
         self.stream_toggle_button = tk.Button(
             button_frame, text="Start Stream", width=18, bg="white",
@@ -314,7 +314,7 @@ class DeviceControl(tk.Frame):
         height, width = self.recorded_frames[0].shape[:2]
         out = cv2.VideoWriter(output_file, fourcc, self.fps, (width, height))
         for f in self.recorded_frames:
-            out.write(f)
+            out.write(cv2.cvtColor(f, cv2.COLOR_BGR2RGB))
         out.release()
         # print(f"Video saved to {output_file}")
 
