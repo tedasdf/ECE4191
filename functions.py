@@ -130,7 +130,7 @@ def stream_toggle(app):
             imgtk = ImageTk.PhotoImage(image=img)
             app.video_label.imgtk = imgtk
             app.video_label.config(image=imgtk)
-            app.video_label.after(25, update_frame)  # schedule next frame
+            app.video_label.after(1, update_frame)  # schedule next frame
             app.frame_buffer.append(frame.copy())
         # else:
         #     if globals.streaming:

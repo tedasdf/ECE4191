@@ -80,8 +80,6 @@ class DeviceControl(tk.Frame):
         self.recorded_video_file = f"media/recorded_video.mp4"
         self.record_thread = None
 
-        print(self.name_output_file("test.wav"))
-
 
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
