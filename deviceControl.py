@@ -44,10 +44,11 @@ class DeviceControl(tk.Frame):
         threading.Thread(target=self._audio_capture_loop, daemon=True).start()
 
         # variable for servo control
-        PI_IP = "192.168.1.50"  # Raspberry Pi IP
-        pan_angle = 90  # start at middle
+        self.focus_set()
         self.bind("<Left>", self.left_key)
         self.bind("<Right>", self.right_key)
+        self.bind("<Up>", self.up_key)
+        self.bind("<Down>", self.down_key)
 
         # variables to control the live recording function
         self.recording = False
@@ -403,15 +404,24 @@ class DeviceControl(tk.Frame):
     def stop_video_stream(self):
         globals.capture.release()
 
-    def move_servo(self, new_angle):
-        global pan_angle
-        global PI_IP
-        pan_angle = max(0, min(180, new_angle))  # clamp between 0°–180°
-        requests.get(f"http://{PI_IP}:5000/servo", params={"angle": pan_angle})
-        print(f"Moved to {pan_angle}°")  # optional feedback
+    def move_servo(self, new_pan_angle, new_tilt_angle):
+        globals.pan_angle = max(0, min(180, new_pan_angle))  # clamp between 0°–180°
+        globals.tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
+        requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_angle": globals.pan_angle, "tilt_angle": globals.tilt_angle})
+        print(f"Moved to {globals.pan_angle}° pan and {globals.tilt_angle}° tilt")  # optional feedback
 
     def left_key(self, event):
-        self.move_servo(pan_angle + 10)  # increase angle
+        self.move_servo(globals.pan_angle + 10, globals.tilt_angle)  # increase angle
+        print("left")
 
     def right_key(self, event):
-        self.move_servo(pan_angle - 10)  # decrease angle
+        self.move_servo(globals.pan_angle - 10, globals.tilt_angle)  # decrease angle
+        print("right")
+
+    def up_key(self, event):
+        self.move_servo(globals.pan_angle, globals.tilt_angle + 10)  # increase angle
+        print("up")
+
+    def down_key(self, event):
+        self.move_servo(globals.pan_angle, globals.tilt_angle - 10)  # decrease angle
+        print("down")
