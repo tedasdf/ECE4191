@@ -1,19 +1,6 @@
-import os
 import tkinter as tk
 from tkinter import ttk
 from functions import *
-from PIL import Image, ImageTk
-import cv2
-import globals
-import vlc
-import threading
-import time
-import datetime
-from collections import deque
-
-import sounddevice as sd
-import numpy as np
-import wave
 
 class Captures(tk.Frame):
     def __init__(self, parent):

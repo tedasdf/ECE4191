@@ -21,33 +21,33 @@ class DeviceControl(tk.Frame):
         super().__init__(parent)
 
         ### instance Variables
+
+        ## Filenames
+        self.AUDIO_OUTPUT_FILE = f"media/recorded_audio.ogg"
+        self.last_audio_clip_file = f"media/recorded_audio.wav"
+        self.recorded_audio_file = f"media/recorded_audio.ogg"
+        self.recorded_video_file = f"media/recorded_video.mp4" # filename for the manually recorded video clip
+
+
         self.fps = 24   # FPS of the stream
         self.buffer_seconds = 30  # how many seconds to keep for save past clip functionality
         self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)    # where frames for the past clip are stored
 
         # audio buffer stuff
         # Audio Stream stuff
-        self.AUDIO_OUTPUT_FILE = f"media/recorded_audio.ogg"
-
-        # self.audio_temp_file = "media/temp_audio.ogg"
-
-        self.audio_buffer_seconds = 30  # how many seconds to keep
-        self.audio_sample_rate = 44100
+        self.audio_buffer_seconds = 30  # how many seconds of audio to keep
+        self.audio_sample_rate = 44100  
         self.audio_channels = 2
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
-        self.last_audio_clip_file = f"media/recorded_audio.wav"
-
+        
         # Start the audio capture in a background thread
         threading.Thread(target=self._audio_capture_loop, daemon=True).start()
-
 
         # variables to control the live recording function
         self.recording = False
         self.record_start_time = None
         self.max_record_seconds = 60
         self.recorded_frames = deque(maxlen=self.fps * self.max_record_seconds)
-        self.recorded_audio_file = f"media/recorded_audio.ogg"
-        self.recorded_video_file = f"media/recorded_video.mp4"
         self.record_thread = None
 
 
@@ -230,8 +230,11 @@ class DeviceControl(tk.Frame):
         return 1
     
     
-    # Live Recording Functions
+    ### Live Recording Functions
     def toggle_recording(self):
+        """
+        Toggles the recording function. This is to be called by the recording button whne the user presses it
+        """
         if not self.recording:
             # Start recording
             self.recording = True
@@ -247,8 +250,9 @@ class DeviceControl(tk.Frame):
         else:
             # Stop recording
             self.recording = False
-            self.record_button.config(bg="white", text="Start Recording")
+            self.record_button.config(bg="white", text="Start Recording") # set record button back to white
             print("Recording stopped")
+            # self._save_recording()
 
 
     def record_loop(self):
@@ -268,15 +272,20 @@ class DeviceControl(tk.Frame):
             if self.frame_buffer:
                 self.recorded_frames.append(self.frame_buffer[-1].copy())
             if time.time() - self.record_start_time >= self.max_record_seconds:
-                self.recording = False
+                # self.recording = False
+                self.toggle_recording()
+                print("recording limit reached")
                 break
             time.sleep(1 / self.fps)  # sync to frame rate
 
         # recorder.stop()
-        self.save_video_recording()
+        self._save_video_recording()
 
 
-    def save_video_recording(self):
+    def _save_video_recording(self):
+        """
+        This function saves the manual recording to the output file.
+        """
         if not self.recorded_frames:
             print("No frames recorded!")
             return
@@ -290,12 +299,9 @@ class DeviceControl(tk.Frame):
         for f in self.recorded_frames:
             out.write(cv2.cvtColor(f, cv2.COLOR_BGR2RGB))
         out.release()
-        # print(f"Video saved to {output_file}")
 
-        # Audio is already saved by VLC to self.recorded_audio_file
-        # print(f"Audio saved to {self.recorded_audio_file}")
 
-    # Save last 30 seconds of audio functions
+    ### Audio capture rolling buffer (for saving the last 30 seconds of audio)
     def _audio_capture_loop(self):
         """
         Continuously capture audio into a rolling memory buffer.
