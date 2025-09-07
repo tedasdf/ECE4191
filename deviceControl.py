@@ -20,20 +20,19 @@ class DeviceControl(tk.Frame):
         super().__init__(parent)
 
         ### instance Variables
-
         ## Filenames
         self.AUDIO_OUTPUT_FILE = f"media/recorded_audio.ogg"
-        self.last_audio_clip_file = f"media/recorded_audio.wav"
+        self.buffer_audio_clip_file = f"media/buffer_audio.wav"
         self.recorded_audio_file = f"media/recorded_audio.ogg"
         self.recorded_video_file = f"media/recorded_video.mp4" # filename for the manually recorded video clip
 
-
+        ## Video stream stuff
         self.fps = 24   # FPS of the stream
         self.buffer_seconds = 30  # how many seconds to keep for save past clip functionality
         self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)    # where frames for the past clip are stored
 
-        # audio buffer stuff
-        # Audio Stream stuff
+        ## Audio Stream stuff
+        # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
         self.audio_sample_rate = 44100  
         self.audio_channels = 2
@@ -49,7 +48,10 @@ class DeviceControl(tk.Frame):
         self.recorded_frames = deque(maxlen=self.fps * self.max_record_seconds)
         self.record_thread = None
 
+        self.layout()
 
+
+    def layout(self):
         # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
         top_frame.pack(fill="x")
@@ -171,18 +173,23 @@ class DeviceControl(tk.Frame):
         self.instance = vlc.Instance('--quiet')
         self.player = self.instance.media_player_new()
 
-
-
     '''
     Functions
     
     '''
 
-    def name_output_file(self, str):
+    def _name_output_file(self, str):
+        """
+        This is a helper function for adding the date and time that a sample was taken to the name of the file it is saved in
+        """
         bits = str.split(".")
         return f"{bits[0]}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')}.{bits[1]}"
-        
+
+ 
     def play_audio_stream(self):
+        """
+        Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
+        """
         media = self.instance.media_new(globals.audio_url)
         self.player.set_media(media)
         self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
@@ -190,32 +197,21 @@ class DeviceControl(tk.Frame):
 
 
     def stop_audio_stream(self):
+        """
+        Stops the audio stream that is playing
+        """
         self.player.stop()
 
 
     def set_volume(self, value):
+        """
+        Called when the volume slider is moved, this sets the volume of the audio stream
+        """
         self.player.audio_set_volume(int(value))
 
 
-    # def record_audio_clip(self):
-    #     def _record():
-    #         output_file = self.name_output_file(self.AUDIO_OUTPUT_FILE)
-    #         if os.path.exists(output_file):
-    #             os.remove(output_file)
-    #         options = f":sout=#file{{dst={output_file}}}"
-    #         media = self.instance.media_new(globals.audio_url, options)
-    #         recorder = self.instance.media_player_new()
-    #         recorder.set_media(media)
-    #         recorder.play()
-    #         time.sleep(5)
-    #         recorder.stop()
-    #         print(f"Saved 5s clip to {output_file}")
-
-    #     threading.Thread(target=_record, daemon=True).start()
-
-
     def save_last_video(self):
-        output_file = self.name_output_file("media/video_clip.mp4")
+        output_file = self._name_output_file("media/video_clip.mp4")
         if not self.frame_buffer:
             print("No frames in buffer!")
             return 0
@@ -241,7 +237,7 @@ class DeviceControl(tk.Frame):
             self.recorded_frames.clear()
 
             # Start background thread to record video + audio
-            self.record_thread = threading.Thread(target=self.record_loop, daemon=True)
+            self.record_thread = threading.Thread(target=self._record_loop, daemon=True)
             self.record_thread.start()
 
             self.record_button.config(bg="red", text="Stop Recording")
@@ -254,13 +250,13 @@ class DeviceControl(tk.Frame):
             # self._save_recording()
 
 
-    def record_loop(self):
+    def _record_loop(self):
         """
         Background loop to capture video frames and audio while recording.
         Stops automatically after self.max_record_seconds.
         """
         # Optional: Record audio via VLC stream
-        # output_file = self.name_output_file(self.recorded_audio_file)
+        # output_file = self._name_output_file(self.recorded_audio_file)
         # options = f":sout=#file{{dst={output_file}}}"
         # media = self.instance.media_new(globals.audio_url, options)
         # recorder = self.instance.media_player_new()
@@ -289,7 +285,7 @@ class DeviceControl(tk.Frame):
             print("No frames recorded!")
             return
         
-        output_file = self.name_output_file(self.recorded_video_file)
+        output_file = self._name_output_file(self.recorded_video_file)
 
         # Save video
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -335,7 +331,7 @@ class DeviceControl(tk.Frame):
         # Convert float32 (-1.0 to 1.0) to 16-bit PCM
         pcm_data = (data * 32767).astype(np.int16)
 
-        write_file = self.name_output_file(self.last_audio_clip_file)
+        write_file = self._name_output_file(self.buffer_audio_clip_file)
 
         # Write to WAV file
         with wave.open(write_file, "wb") as wf:
