@@ -21,7 +21,7 @@ class DeviceControl(tk.Frame):
         super().__init__(parent)
 
         ## Filenames
-        # self.recorded_audio_file = f"media/recorded_audio.ogg"
+        self.recorded_audio_file = f"media/recorded_audio.ogg"
         self.buffer_audio_clip_file = f"media/buffer_audio.wav" # filename for the audio clip saved by the audio buffer
         self.recorded_video_file = f"media/recorded_video.mp4" # filename for the manually recorded video clip
 
@@ -234,24 +234,24 @@ class DeviceControl(tk.Frame):
         Stops automatically after self.max_record_seconds.
         """
         # Optional: Record audio via VLC stream
-        # output_file = self._name_output_file(self.recorded_audio_file)
-        # options = f":sout=#file{{dst={output_file}}}"
-        # media = self.instance.media_new(globals.audio_url, options)
-        # recorder = self.instance.media_player_new()
-        # recorder.set_media(media)
-        # recorder.play()
+        output_file = self._name_output_file(self.recorded_audio_file)
+        options = f":sout=#file{{dst={output_file}}}"
+        media = self.instance.media_new(globals.audio_url, options)
+        recorder = self.instance.media_player_new()
+        recorder.set_media(media)
+        recorder.play()
 
         while self.recording:
             if self.frame_buffer:
                 self.recorded_frames.append(self.frame_buffer[-1].copy())
             if time.time() - self.record_start_time >= self.max_record_seconds:
-                # self.recording = False
+                self.recording = False
                 self.toggle_recording()
                 print("recording limit reached")
                 break
             time.sleep(1 / self.fps)  # sync to frame rate
 
-        # recorder.stop()
+        recorder.stop()
         self._save_video_recording()
 
 
@@ -337,26 +337,26 @@ class DeviceControl(tk.Frame):
                     globals.streaming = False
                     self.stream_toggle_button.config(text="Start Stream")
                     self.video_label.config(image=self.stream_standby_photo)
-                    audio_stream.stop_stream()
-                    audio_stream.close()
-                    p.termiate()
+                    # audio_stream.stop_stream()
+                    # audio_stream.close()
+                    # p.termiate()
                     messagebox.showerror("Error", "Video Disconnected")
                     return
 
-        def audio_loop():
-            audio_data = self.audio_stream_process.stdout.read(4096)
+        # def audio_loop():
+        #     audio_data = self.audio_stream_process.stdout.read(4096)
             
-            if audio_data:
-                audio_stream.write(audio_data)
-                self.after(15, audio_loop)
-            else:
-                if globals.streaming:
-                    globals.streaming = False
-                    self.stream_toggle_button.config(text="Start Stream")
-                    self.video_label.config(image=self.stream_standby_photo)
-                    globals.capture.release()
-                    messagebox.showerror("Error", "Audio Disconnected")
-                    return
+        #     if audio_data:
+        #         audio_stream.write(audio_data)
+        #         self.after(15, audio_loop)
+        #     else:
+        #         if globals.streaming:
+        #             globals.streaming = False
+        #             self.stream_toggle_button.config(text="Start Stream")
+        #             self.video_label.config(image=self.stream_standby_photo)
+        #             globals.capture.release()
+        #             messagebox.showerror("Error", "Audio Disconnected")
+        #             return
             
             
             
@@ -365,29 +365,29 @@ class DeviceControl(tk.Frame):
             # Start video stream if not streaming
             globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
-            # app.play_audio_stream()
+            self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
             video_loop()
 
             # Now start audio
-            self.audio_stream_process = subprocess.Popen(
-                ["ffmpeg", "-i", globals.audio_url, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "-"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL            
-            )
+            # self.audio_stream_process = subprocess.Popen(
+            #     ["ffmpeg", "-i", globals.audio_url, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "-"],
+            #     stdout=subprocess.PIPE,
+            #     stderr=subprocess.DEVNULL            
+            # )
 
-            p = pyaudio.PyAudio()
-            audio_stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, output=True)
-            threading.Thread(target=audio_loop, daemon=True).start()
+            # p = pyaudio.PyAudio()
+            # audio_stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, output=True)
+            # threading.Thread(target=audio_loop, daemon=True).start()
 
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
             globals.capture.release()
-            # app.stop_audio_stream()
-            audio_stream.stop_stream()
-            audio_stream.close()
-            p.termiate()
+            self.stop_audio_stream()
+            # audio_stream.stop_stream()
+            # audio_stream.close()
+            # p.termiate()
    
 
             self.stream_toggle_button.config(text="Start Stream")
