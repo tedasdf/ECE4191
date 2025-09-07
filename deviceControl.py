@@ -405,6 +405,7 @@ class DeviceControl(tk.Frame):
 
     def move_servo(self, new_angle):
         global pan_angle
+        global PI_IP
         pan_angle = max(0, min(180, new_angle))  # clamp between 0°–180°
         requests.get(f"http://{PI_IP}:5000/servo", params={"angle": pan_angle})
         print(f"Moved to {pan_angle}°")  # optional feedback
