@@ -3,29 +3,29 @@ from tkinter import ttk
 from functions import *
 
 class Captures(tk.Frame):
-    def __init__(self, parent, controller):
+    def __init__(self, parent):
         super().__init__(parent)
 
-        # --- Top Menu Bar ---
-        top_frame = tk.Frame(self, bg="white", pady=5)
-        top_frame.pack(fill="x")
+        # # --- Top Menu Bar ---
+        # top_frame = tk.Frame(self, bg="white", pady=5)
+        # top_frame.pack(fill="x")
 
-        logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
-        logo.pack(side="left", padx=10)
+        # logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
+        # logo.pack(side="left", padx=10)
 
-        connectionsetup_button = tk.Button(
-            top_frame, text="Connection Setup",
-            command=lambda: controller.show_frame(ConnectionSetup))
-        connectionsetup_button.pack(side="left", padx=5)
+        # connectionsetup_button = tk.Button(
+        #     top_frame, text="Connection Setup",
+        #     command=lambda: controller.show_frame(ConnectionSetup))
+        # connectionsetup_button.pack(side="left", padx=5)
 
-        captures_button = tk.Button(
-            top_frame, text="Device Control",
-            command=lambda: controller.show_frame(DeviceControl))
-        captures_button.pack(side="left", padx=5)
+        # captures_button = tk.Button(
+        #     top_frame, text="Device Control",
+        #     command=lambda: controller.show_frame(DeviceControl))
+        # captures_button.pack(side="left", padx=5)
 
-        tk.Button(top_frame, text="Captures", relief="sunken").pack(side="left", padx=5)
+        # tk.Button(top_frame, text="Captures", relief="sunken").pack(side="left", padx=5)
 
-        tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
+        # tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
         # file browser
         main_frame = tk.Frame(self)
