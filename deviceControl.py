@@ -39,6 +39,8 @@ class DeviceControl(tk.Frame):
         self.audio_channels = 2
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
         
+        self.audio_stream_process = None
+        
         # Start the audio capture in a background thread
         threading.Thread(target=self._audio_capture_loop, daemon=True).start()
 
@@ -53,26 +55,6 @@ class DeviceControl(tk.Frame):
 
 
     def layout(self):
-        # --- Top Menu Bar ---
-        # top_frame = tk.Frame(self, bg="white", pady=5)
-        # top_frame.pack(fill="x")
-
-        # logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
-        # logo.pack(side="left", padx=10)
-
-        # connectionsetup_button = tk.Button(
-        #     top_frame, text="Connection Setup",
-        #     command=lambda: controller.show_frame(ConnectionSetup))
-        # connectionsetup_button.pack(side="left", padx=5)
-
-        # tk.Button(top_frame, text="Device Control", relief="sunken").pack(side="left", padx=5)
-
-        # captures_button = tk.Button(
-        #     top_frame, text="Captures",
-        #     command=lambda: controller.show_frame(Captures))
-        # captures_button.pack(side="left", padx=5)
-
-        # tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
         # --- Video + Controls section ---
         main_frame = tk.Frame(self)
@@ -132,7 +114,7 @@ class DeviceControl(tk.Frame):
 
         self.stream_toggle_button = tk.Button(
             button_frame, text="Start Stream", width=18, bg="white",
-            command=lambda: stream_toggle(self))
+            command=lambda: self.stream_toggle())
         
         self.record_button = tk.Button(
             button_frame, text="Start Recording", width=18, command=self.toggle_recording
@@ -342,3 +324,79 @@ class DeviceControl(tk.Frame):
             wf.writeframes(pcm_data.tobytes())
 
         print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
+
+    def stream_toggle(self):
+        def video_loop():
+            ret, frame = globals.capture.read()
+            if ret:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                #frame = cv2.resize(frame, (600, 400))  # fit the label size
+                img = Image.fromarray(frame)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.config(image=imgtk)
+                self.video_label.after(15, video_loop)  # schedule next frame
+                self.frame_buffer.append(frame.copy()) # add recording to video buffer
+            else:
+                if globals.streaming:
+                    globals.streaming = False
+                    self.stream_toggle_button.config(text="Start Stream")
+                    self.video_label.config(image=self.stream_standby_photo)
+                    audio_stream.stop_stream()
+                    audio_stream.close()
+                    p.termiate()
+                    messagebox.showerror("Error", "Video Disconnected")
+                    return
+
+        def audio_loop():
+            audio_data = self.audio_stream_process.stdout.read(4096)
+            
+            if audio_data:
+                audio_stream.write(audio_data)
+                self.after(15, audio_loop)
+            else:
+                if globals.streaming:
+                    globals.streaming = False
+                    self.stream_toggle_button.config(text="Start Stream")
+                    self.video_label.config(image=self.stream_standby_photo)
+                    globals.capture.release()
+                    messagebox.showerror("Error", "Audio Disconnected")
+                    return
+            
+            
+            
+
+        if not globals.streaming:
+            # Start video stream if not streaming
+            globals.capture = cv2.VideoCapture(globals.video_url)
+            globals.streaming = True
+            # app.play_audio_stream()
+            self.stream_toggle_button.config(text="Stop Stream")
+            video_loop()
+
+            # Now start audio
+            self.audio_stream_process = subprocess.Popen(
+                ["ffmpeg", "-i", globals.audio_url, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "-"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL            
+            )
+
+            p = pyaudio.PyAudio()
+            audio_stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, output=True)
+            threading.Thread(target=audio_loop, daemon=True).start()
+
+        else:
+            # Stop video and audio stream if already streaming
+            globals.streaming = False
+            globals.capture.release()
+            # app.stop_audio_stream()
+            audio_stream.stop_stream()
+            audio_stream.close()
+            p.termiate()
+   
+
+            self.stream_toggle_button.config(text="Start Stream")
+            self.video_label.config(image=self.stream_standby_photo)
+
+    def stop_video_stream(self):
+        globals.capture.release()
