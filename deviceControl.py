@@ -20,11 +20,9 @@ class DeviceControl(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
 
-        ### instance Variables
         ## Filenames
-        self.AUDIO_OUTPUT_FILE = f"media/recorded_audio.ogg"
-        self.buffer_audio_clip_file = f"media/buffer_audio.wav"
-        self.recorded_audio_file = f"media/recorded_audio.ogg"
+        # self.recorded_audio_file = f"media/recorded_audio.ogg"
+        self.buffer_audio_clip_file = f"media/buffer_audio.wav" # filename for the audio clip saved by the audio buffer
         self.recorded_video_file = f"media/recorded_video.mp4" # filename for the manually recorded video clip
 
         ## Video stream stuff
@@ -156,10 +154,6 @@ class DeviceControl(tk.Frame):
         self.instance = vlc.Instance('--quiet')
         self.player = self.instance.media_player_new()
 
-    '''
-    Functions
-    
-    '''
 
     def _name_output_file(self, str):
         """
@@ -168,7 +162,15 @@ class DeviceControl(tk.Frame):
         bits = str.split(".")
         return f"{bits[0]}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')}.{bits[1]}"
 
- 
+
+    def set_volume(self, value):
+        """
+        Called when the volume slider is moved, this sets the volume of the audio stream
+        """
+        self.player.audio_set_volume(int(value))
+
+
+    ### audio stream control functions
     def play_audio_stream(self):
         """
         Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
@@ -185,14 +187,7 @@ class DeviceControl(tk.Frame):
         """
         self.player.stop()
 
-
-    def set_volume(self, value):
-        """
-        Called when the volume slider is moved, this sets the volume of the audio stream
-        """
-        self.player.audio_set_volume(int(value))
-
-
+    ### Video capture rolling buffer 
     def save_last_video(self):
         output_file = self._name_output_file("media/video_clip.mp4")
         if not self.frame_buffer:
@@ -279,7 +274,7 @@ class DeviceControl(tk.Frame):
         out.release()
 
 
-    ### Audio capture rolling buffer (for saving the last 30 seconds of audio)
+    ### Audio capture rolling buffer
     def _audio_capture_loop(self):
         """
         Continuously capture audio into a rolling memory buffer.
