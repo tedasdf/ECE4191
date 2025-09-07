@@ -27,6 +27,31 @@ class WildlifeBotApp(tk.Tk):
         self.configure(bg="lightgray")
         self.resizable(True, True)
 
+         # --- Top Menu Bar ---
+        top_frame = tk.Frame(self, bg="white", pady=5)
+        top_frame.pack(fill="x")
+
+        logo = tk.Label(top_frame, text="🐨", font=("Arial", 18))
+        logo.pack(side="left", padx=10)
+
+        connectionsetup_button = tk.Button(
+            top_frame, text="Connection Setup",
+            command=lambda: self.show_frame(ConnectionSetup))
+        connectionsetup_button.pack(side="left", padx=5)
+
+        devicecontrol_button = tk.Button(
+            top_frame, text="Device Control",
+            command=lambda: self.show_frame(DeviceControl))
+        devicecontrol_button.pack(side="left", padx=5)
+
+        captures_button = tk.Button(
+            top_frame, text="Captures",
+            command=lambda: self.show_frame(Captures))
+        captures_button.pack(side="left", padx=5)
+
+        tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
+
+
         # Container to hold all frames
         container = tk.Frame(self)
         container.pack(fill="both", expand=True)
@@ -38,7 +63,7 @@ class WildlifeBotApp(tk.Tk):
 
         # Initialize all screens
         for F in (DeviceControl, ConnectionSetup, Captures):
-            frame = F(container, self)
+            frame = F(container)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
 
