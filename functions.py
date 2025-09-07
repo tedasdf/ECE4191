@@ -95,32 +95,10 @@ def tree_open_file(event, mediadir, tree):
         messagebox.showerror("Error", f"Could not open file:\n{e}")    
 
 
-
-# ------------Video streaming------------
-
-# def stream_video(url, label):
-#     # Open the video stream
-#     capture = cv2.VideoCapture(url)
-
-#     def update_frame():
-#         ret, frame = capture.read()
-#         if ret:
-#             # Convert BGR (OpenCV) → RGB (Pillow)
-#             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-#             img = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
-            
-#             # Update the label
-#             label.imgtk = img
-#             label.configure(image=img)
-
-#         # Call update again after 15 ms
-#         label.after(15, update_frame)
-
-#     update_frame()
-
-
 def stream_toggle(app):
-
+    """
+    Toggles the audio and video streams. 
+    """
     def update_frame():
         ret, frame = globals.capture.read()
         if ret:
@@ -139,8 +117,6 @@ def stream_toggle(app):
         #         app.stream_toggle_button.config(text="Start Stream")
         #         app.video_label.config(image=app.stream_standby_photo)
         #         return
-
-        
 
     if not globals.streaming:
         # Start video and audio stream if not streaming
