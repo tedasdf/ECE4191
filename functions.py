@@ -147,4 +147,5 @@ def tree_open_file(event, mediadir, tree):
 def set_link(app):
     globals.video_url = app.video_url_text.get()
     globals.audio_url = app.audio_url_text.get()
+    globals.PI_IP = app.motor_url_text.get()
     app.title.config(text=f"Stream link updated at {datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}")

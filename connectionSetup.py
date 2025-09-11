@@ -44,10 +44,17 @@ class ConnectionSetup(tk.Frame):
         self.video_url_text.pack(fill="x", padx=10, pady=10)
         self.video_url_text.insert(0, globals.video_url)
 
+        # audio url section
         tk.Label(info_frame, text="Audio stream URL:").pack(padx=10)
         self.audio_url_text = tk.Entry(info_frame)
         self.audio_url_text.pack(fill="x", padx=10, pady=10)
         self.audio_url_text.insert(0, globals.audio_url)
+
+        # pi url section
+        tk.Label(info_frame, text="Motor control URL:").pack(padx=10)
+        self.motor_url_text = tk.Entry(info_frame)
+        self.motor_url_text.pack(fill="x", padx=10, pady=10)
+        self.motor_url_text.insert(0, globals.PI_IP)
 
         self.title = tk.Label(connection_main_frame, text="")
         self.title.pack(side="top")

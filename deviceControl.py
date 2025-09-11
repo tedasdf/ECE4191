@@ -103,8 +103,8 @@ class DeviceControl(tk.Frame):
         cam_frame = tk.LabelFrame(right_frame, text="Camera Controls")
         cam_frame.pack(side="bottom", padx=10, pady=10, fill="x")
 
-        tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
-        ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
+        # tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
+        # ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
 
         tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
@@ -365,9 +365,9 @@ class DeviceControl(tk.Frame):
         #             globals.capture.release()
         #             messagebox.showerror("Error", "Audio Disconnected")
         #             return
-            
-            
-            
+
+
+
 
         if not globals.streaming:
             # Start video stream if not streaming
@@ -396,7 +396,6 @@ class DeviceControl(tk.Frame):
             # audio_stream.stop_stream()
             # audio_stream.close()
             # p.termiate()
-   
 
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)
@@ -405,10 +404,13 @@ class DeviceControl(tk.Frame):
         globals.capture.release()
 
     def move_servo(self, new_pan_angle, new_tilt_angle):
-        globals.pan_angle = max(0, min(180, new_pan_angle))  # clamp between 0°–180°
-        globals.tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
-        requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_angle": globals.pan_angle, "tilt_angle": globals.tilt_angle})
-        print(f"Moved to {globals.pan_angle}° pan and {globals.tilt_angle}° tilt")  # optional feedback
+        try:
+            globals.pan_angle = max(0, min(180, new_pan_angle))  # clamp between 0°–180°
+            globals.tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
+            requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_angle": globals.pan_angle, "tilt_angle": globals.tilt_angle})
+            print(f"Moved to {globals.pan_angle}° pan and {globals.tilt_angle}° tilt")  # optional feedback
+        except:
+            messagebox.showerror("Error", "No response from motor")
 
     def left_key(self, event):
         self.move_servo(globals.pan_angle + 10, globals.tilt_angle)  # increase angle
