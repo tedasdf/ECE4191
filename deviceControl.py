@@ -49,6 +49,10 @@ class DeviceControl(tk.Frame):
         self.bind("<Right>", self.right_key)
         self.bind("<Up>", self.up_key)
         self.bind("<Down>", self.down_key)
+        self.bind("<Button-1>", lambda e: self.focus_set())
+        # Cooldown tracker
+        self.last_key_time = 0
+        self.key_cooldown = 0.1  # 100 ms between keypress handling
 
         # variables to control the live recording function
         self.recording = False
@@ -412,18 +416,37 @@ class DeviceControl(tk.Frame):
         except:
             messagebox.showerror("Error", "No response from motor")
 
+    def _key_press(self, new_pan=None, new_tilt=None):
+        """Internal helper to safely move servo in a thread."""
+        now = time.time()
+        if now - self.last_key_time < self.key_cooldown:
+            return  # skip if too soon
+        self.last_key_time = now
+
+        if new_pan is not None:
+            globals.pan_angle = max(0, min(180, new_pan))
+        if new_tilt is not None:
+            globals.tilt_angle = max(0, min(90, new_tilt))
+
+        # Run servo movement in a separate thread
+        threading.Thread(
+            target=self.move_servo,
+            args=(globals.pan_angle, globals.tilt_angle),
+            daemon=True
+        ).start()
+
     def left_key(self, event):
-        self.move_servo(globals.pan_angle + 10, globals.tilt_angle)  # increase angle
-        print("left")
+        self._key_press(new_pan=globals.pan_angle + 10)
+        print("left pressed")
 
     def right_key(self, event):
-        self.move_servo(globals.pan_angle - 10, globals.tilt_angle)  # decrease angle
-        print("right")
+        self._key_press(new_pan=globals.pan_angle - 10)
+        print("right pressed")
 
     def up_key(self, event):
-        self.move_servo(globals.pan_angle, globals.tilt_angle + 10)  # increase angle
-        print("up")
+        self._key_press(new_tilt=globals.tilt_angle + 10)
+        print("up pressed")
 
     def down_key(self, event):
-        self.move_servo(globals.pan_angle, globals.tilt_angle - 10)  # decrease angle
-        print("down")
+        self._key_press(new_tilt=globals.tilt_angle - 10)
+        print("down pressed")
