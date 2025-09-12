@@ -130,7 +130,7 @@ class DeviceControl(tk.Frame):
         tk.Button(button_frame, text="Save last 30s of Audio", width=18, command=self.save_last_audio).grid(row=0, column=1, sticky="nsew")
         self.record_button.grid(row=0, column=2, sticky="nsew")
         self.stream_toggle_button.grid(row=1, column=0, sticky="nsew")
-        tk.Button(button_frame, text="Audio filter toggle", width=18).grid(row=1, column=1, sticky="nsew")
+        # tk.Button(button_frame, text="Audio filter toggle", width=18).grid(row=1, column=1, sticky="nsew")
         tk.Button(button_frame, text="Bounding Box Toggle", width=18).grid(row=1, column=2, sticky="nsew")
         
         # --- Audio Section ---
