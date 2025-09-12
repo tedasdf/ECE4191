@@ -43,13 +43,6 @@ class DeviceControl(tk.Frame):
         # Start the audio capture in a background thread
         threading.Thread(target=self._audio_capture_loop, daemon=True).start()
 
-        # variable for servo control
-        self.focus_set()
-        self.bind("<Left>", self.left_key)
-        self.bind("<Right>", self.right_key)
-        self.bind("<Up>", self.up_key)
-        self.bind("<Down>", self.down_key)
-        self.bind("<Button-1>", lambda e: self.focus_set())
         # Cooldown tracker
         self.last_key_time = 0
         self.key_cooldown = 0.1  # 100 ms between keypress handling
@@ -79,6 +72,14 @@ class DeviceControl(tk.Frame):
         img = Image.open("stream_standby_image.jpg").resize((600, 400))
         self.stream_standby_photo = ImageTk.PhotoImage(img)
         self.video_label.config(image=self.stream_standby_photo)
+
+        # variable for servo control
+        self.video_label.focus_set()
+        self.video_label.bind("<Left>", self.left_key)
+        self.video_label.bind("<Right>", self.right_key)
+        self.video_label.bind("<Up>", self.up_key)
+        self.video_label.bind("<Down>", self.down_key)
+        self.video_label.bind("<Button-1>", lambda e: self.video_label.focus_set())
 
         # Right panel
         right_frame = tk.Frame(main_frame)
