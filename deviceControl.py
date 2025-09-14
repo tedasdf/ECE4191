@@ -345,16 +345,16 @@ class DeviceControl(tk.Frame):
                 self.video_label.config(image=imgtk)
                 self.video_label.after(15, video_loop)  # schedule next frame
                 self.frame_buffer.append(frame.copy()) # add recording to video buffer
-            else:
-                if globals.streaming:
-                    globals.streaming = False
-                    self.stream_toggle_button.config(text="Start Stream")
-                    self.video_label.config(image=self.stream_standby_photo)
-                    # audio_stream.stop_stream()
-                    # audio_stream.close()
-                    # p.termiate()
-                    messagebox.showerror("Error", "Video Disconnected")
-                    return
+            # else:
+            #     if globals.streaming:
+            #         globals.streaming = False
+            #         self.stream_toggle_button.config(text="Start Stream")
+            #         self.video_label.config(image=self.stream_standby_photo)
+            #         # audio_stream.stop_stream()
+            #         # audio_stream.close()
+            #         # p.termiate()
+            #         messagebox.showerror("Error", "Video Disconnected")
+            #         return
 
         # def audio_loop():
         #     audio_data = self.audio_stream_process.stdout.read(4096)
