@@ -16,6 +16,8 @@ import numpy as np
 import wave
 import requests
 
+pan_speed_percent = 0  # start at middle
+tilt_angle = 0
 
 class DeviceControl(tk.Frame):
     def __init__(self, parent):
@@ -409,16 +411,23 @@ class DeviceControl(tk.Frame):
         globals.capture.release()
 
     def move_servo(self, new_pan_speed_percent, new_tilt_angle):
-        try:
-            # globals.pan_speed_percent = max(0, min(180, new_pan_speed_percent))  # clamp between 0°–180°
-            globals.tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
-            requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_speed_percent": globals.pan_speed_percent, "tilt_angle": globals.tilt_angle})
-            print(f"Moved to {globals.pan_speed_percent}° pan and {globals.tilt_angle}° tilt")  # optional feedback
-            self.reset_pan
-        except:
-            messagebox.showerror("Error", "No response from motor")
+        global tilt_angle
+        if globals.streaming:
+            try:
+                # pan_speed_percent = max(0, min(180, new_pan_speed_percent))  # clamp between 0°–180°
+                tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
+                requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_speed_percent": pan_speed_percent, "tilt_angle": tilt_angle})
+                print(f"Moved to {pan_speed_percent}° pan and {tilt_angle}° tilt")  # optional feedback
+                self.reset_pan
+            except:
+                messagebox.showerror("Error", "No response from motor")
+        else:
+            print("Not currently streaming.")
+            return
 
     def _key_press(self, new_pan=None, new_tilt=None):
+        global pan_speed_percent
+        global tilt_angle
         """Internal helper to safely move servo in a thread."""
         now = time.time()
         if now - self.last_key_time < self.key_cooldown:
@@ -426,14 +435,14 @@ class DeviceControl(tk.Frame):
         self.last_key_time = now
 
         if new_pan is not None:
-            globals.pan_speed_percent = new_pan
+            pan_speed_percent = new_pan
         if new_tilt is not None:
-            globals.tilt_angle = max(0, min(90, new_tilt))
+            tilt_angle = max(0, min(90, new_tilt))
 
         # Run servo movement in a separate thread
         threading.Thread(
             target=self.move_servo,
-            args=(globals.pan_speed_percent, globals.tilt_angle),
+            args=(pan_speed_percent, tilt_angle),
             daemon=True
         ).start()
 
@@ -447,12 +456,13 @@ class DeviceControl(tk.Frame):
         print("right pressed")
 
     def up_key(self, event):
-        self._key_press(new_tilt=globals.tilt_angle + 10)
+        self._key_press(new_tilt=tilt_angle + 10)
         print("up pressed")
 
     def down_key(self, event):
-        self._key_press(new_tilt=globals.tilt_angle - 10)
+        self._key_press(new_tilt=tilt_angle - 10)
         print("down pressed")
 
     def reset_pan():
-        globals.pan_speed_percent = 0
+        global pan_speed_percent
+        pan_speed_percent = 0
