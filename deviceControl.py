@@ -408,12 +408,13 @@ class DeviceControl(tk.Frame):
     def stop_video_stream(self):
         globals.capture.release()
 
-    def move_servo(self, new_pan_angle, new_tilt_angle):
+    def move_servo(self, new_pan_speed_percent, new_tilt_angle):
         try:
-            globals.pan_angle = max(0, min(180, new_pan_angle))  # clamp between 0°–180°
+            # globals.pan_speed_percent = max(0, min(180, new_pan_speed_percent))  # clamp between 0°–180°
             globals.tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
-            requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_angle": globals.pan_angle, "tilt_angle": globals.tilt_angle})
-            print(f"Moved to {globals.pan_angle}° pan and {globals.tilt_angle}° tilt")  # optional feedback
+            requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_speed_percent": globals.pan_speed_percent, "tilt_angle": globals.tilt_angle})
+            print(f"Moved to {globals.pan_speed_percent}° pan and {globals.tilt_angle}° tilt")  # optional feedback
+            self.reset_pan
         except:
             messagebox.showerror("Error", "No response from motor")
 
@@ -425,23 +426,24 @@ class DeviceControl(tk.Frame):
         self.last_key_time = now
 
         if new_pan is not None:
-            globals.pan_angle = max(0, min(180, new_pan))
+            globals.pan_speed_percent = new_pan
         if new_tilt is not None:
             globals.tilt_angle = max(0, min(90, new_tilt))
 
         # Run servo movement in a separate thread
         threading.Thread(
             target=self.move_servo,
-            args=(globals.pan_angle, globals.tilt_angle),
+            args=(globals.pan_speed_percent, globals.tilt_angle),
             daemon=True
         ).start()
 
+
     def left_key(self, event):
-        self._key_press(new_pan=globals.pan_angle + 10)
+        self._key_press(new_pan=50)
         print("left pressed")
 
     def right_key(self, event):
-        self._key_press(new_pan=globals.pan_angle - 10)
+        self._key_press(new_pan=-50)
         print("right pressed")
 
     def up_key(self, event):
@@ -451,3 +453,6 @@ class DeviceControl(tk.Frame):
     def down_key(self, event):
         self._key_press(new_tilt=globals.tilt_angle - 10)
         print("down pressed")
+
+    def reset_pan():
+        globals.pan_speed_percent = 0
