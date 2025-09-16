@@ -25,7 +25,7 @@ class WildlifeBotApp(tk.Tk):
         super().__init__()
         self.title("Wildlife Bot")
         self.configure(bg="lightgray")
-        self.resizable(True, True)
+        self.resizable(False, False)
 
          # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
@@ -78,5 +78,4 @@ class WildlifeBotApp(tk.Tk):
 
 if __name__ == "__main__":
     app = WildlifeBotApp()
-    app.state("zoomed")  # start full screen on Windows; use app.attributes("-fullscreen", True) for Linux
     app.mainloop()

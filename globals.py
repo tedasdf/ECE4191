@@ -8,8 +8,7 @@ audio_url = "https://samplelib.com/lib/preview/mp3/sample-9s.mp3"
 # audio_url = "http://192.168.77.1:8080"
 PI_IP = "192.168.0.145"
 # PI_IP = "10.173.94.23"  # Raspberry Pi IP
-pan_speed_percent = 0  # start at middle
-tilt_angle = 0
+
 streaming = False
 capture = None
 audio_stream_process = None
