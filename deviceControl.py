@@ -426,7 +426,7 @@ class DeviceControl(tk.Frame):
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 #frame = cv2.resize(frame, (600, 400))  # fit the label size
-                if self.awb_enabled:
+                if self.awb_enabled.get():
                     frame = gray_world_awb(frame)
                 img = Image.fromarray(frame)
                 imgtk = ImageTk.PhotoImage(image=img)
