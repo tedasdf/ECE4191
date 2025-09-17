@@ -4,7 +4,7 @@ import time
 
 app = Flask(__name__)
 
-SERVO_PIN_PAN = 18  # BCM pin
+SERVO_PIN_PAN = 13  # BCM pin
 SERVO_PIN_TILT = 17 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(SERVO_PIN_PAN, GPIO.OUT)

@@ -56,6 +56,11 @@ class DeviceControl(tk.Frame):
         self.recorded_frames = deque(maxlen=self.fps * self.max_record_seconds)
         self.record_thread = None
 
+        # Variable to control the camera torches
+        self.torch_1 = tk.BooleanVar(value=False)
+        self.torch_2 = tk.BooleanVar(value=False)
+        self.awb_enabled = tk.BooleanVar(value=False)
+        
         self.layout()
 
 
@@ -109,6 +114,9 @@ class DeviceControl(tk.Frame):
         # Camera Controls
         cam_frame = tk.LabelFrame(right_frame, text="Camera Controls")
         cam_frame.pack(side="bottom", padx=10, pady=10, fill="x")
+        cam_frame.columnconfigure(0, weight=1)
+        cam_frame.columnconfigure(1, weight=1) 
+        cam_frame.columnconfigure(2, weight=1)
 
         # tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
         # ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
@@ -118,6 +126,59 @@ class DeviceControl(tk.Frame):
 
         tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1, sticky="ew")
+
+        def torch_1_control():
+            try:
+                requests.get(
+                    f"http://{globals.PI_IP}:5000/torch", 
+                    params={
+                        "torch_1": 1 if not self.torch_1.get() else 0, 
+                    },
+                    timeout=10
+                )
+                self.torch_1.set(not self.torch_1.get())
+                btn_torch_1.config(text=f"Torch 1: {'ON' if self.torch_1.get() else 'OFF'}")
+            except requests.Timeout:
+                print("Request timed out - Torch 1.")
+
+        def torch_2_control():
+            try:
+                requests.get(
+                    f"http://{globals.PI_IP}:5000/torch", 
+                    params={
+                        "torch_2": 1 if not self.torch_2.get() else 0, 
+                    },
+                    timeout=10
+                )
+                self.torch_2.set(not self.torch_2.get())
+                btn_torch_2.config(text=f"Torch 2: {'ON' if self.torch_2.get() else 'OFF'}")
+            except requests.Timeout:
+                print("Request timed out - Torch 2.")
+
+        def awb_control():
+            self.awb_enabled.set(not self.awb_enabled.get())
+            btn_awb.config(text=f"AWB: {'ON' if self.awb_enabled.get() else 'OFF'}")
+
+        btn_torch_1 = ttk.Button(
+            cam_frame, 
+            text=f"Torch 1: {'ON' if self.torch_1.get() else 'OFF'}", 
+            command=torch_1_control
+        )
+        btn_torch_1.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
+
+        btn_torch_2 = ttk.Button(
+            cam_frame, 
+            text=f"Torch 1: {'ON' if self.torch_2.get() else 'OFF'}", 
+            command=torch_2_control
+        )
+        btn_torch_2.grid(row=3, column=1, sticky="ew", padx=5, pady=5)
+
+        btn_awb = ttk.Button(
+            cam_frame,
+            text=f"AWB: {'ON' if self.awb_enabled.get() else 'OFF'}",
+            command=awb_control
+        )
+        btn_awb.grid(row=3, column=2, sticky="ew", padx=5, pady=5)
 
         cam_frame.grid_columnconfigure(1, weight=1)
 
@@ -336,16 +397,42 @@ class DeviceControl(tk.Frame):
         print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
 
     def stream_toggle(self):
+        def gray_world_awb(img):
+            # Convert to float
+            img_float = img.astype(np.float32)
+            
+            # Compute average per channel
+            avg_b = np.mean(img_float[:, :, 0])
+            avg_g = np.mean(img_float[:, :, 1])
+            avg_r = np.mean(img_float[:, :, 2])
+            
+            # Compute scale factors
+            avg_gray = (avg_b + avg_g + avg_r) / 3
+            scale_b = avg_gray / avg_b
+            scale_g = avg_gray / avg_g
+            scale_r = avg_gray / avg_r
+            
+            # Apply scaling
+            img_float[:, :, 0] *= scale_b
+            img_float[:, :, 1] *= scale_g
+            img_float[:, :, 2] *= scale_r
+            
+            # Clip and convert back
+            img_float = np.clip(img_float, 0, 255).astype(np.uint8)
+            return img_float
+
         def video_loop():
             ret, frame = globals.capture.read()
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 #frame = cv2.resize(frame, (600, 400))  # fit the label size
+                if self.awb_enabled:
+                    frame = gray_world_awb(frame)
                 img = Image.fromarray(frame)
                 imgtk = ImageTk.PhotoImage(image=img)
                 self.video_label.imgtk = imgtk
                 self.video_label.config(image=imgtk)
-                self.video_label.after(15, video_loop)  # schedule next frame
+                self.video_label.after(1, video_loop)  # schedule next frame
                 self.frame_buffer.append(frame.copy()) # add recording to video buffer
             # else:
             #     if globals.streaming:
