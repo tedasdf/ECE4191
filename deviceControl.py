@@ -76,11 +76,13 @@ class DeviceControl(tk.Frame):
         self.video_label.config(image=self.stream_standby_photo)
 
         # variable for servo control
-        self.video_label.focus_set()
-        self.video_label.bind("<Left>", self.left_key)
-        self.video_label.bind("<Right>", self.right_key)
-        self.video_label.bind("<Up>", self.up_key)
-        self.video_label.bind("<Down>", self.down_key)
+        # self.video_label.focus_set()
+        # self.video_label.bind("<Left>", self.left_key)
+        # self.video_label.bind("<Right>", self.right_key)
+        # self.video_label.bind("<Up>", self.up_key)
+        # self.video_label.bind("<Down>", self.down_key)
+        self.video_label.bind("<KeyPress>", self.keydown)
+        self.video_label.bind("<KeyRelease>", self.keyup)
         self.video_label.bind("<Button-1>", lambda e: self.video_label.focus_set())
 
         # Right panel
@@ -447,21 +449,45 @@ class DeviceControl(tk.Frame):
         ).start()
 
 
-    def left_key(self, event):
-        self._key_press(new_pan=50)
-        print("left pressed")
+    def keyup(self, e):
+        stateChange = False
+        if e.keysym == "Up" and globals.upKeyState:
+            globals.upKeyState = False
+            stateChange = True
+            # send tilt stop command
+            self.sendServoControl("tiltStop")
 
-    def right_key(self, event):
-        self._key_press(new_pan=-50)
-        print("right pressed")
+        elif e.keysym == "Down" and globals.downKeyState:
+            globals.downKeyState = False
+            stateChange = True
+            # send tilt stop command
+            self.sendServoControl("tiltStop")
 
-    def up_key(self, event):
-        self._key_press(new_tilt=tilt_angle + 10)
-        print("up pressed")
+        if stateChange:
+            print(e.keysym, 'released')
 
-    def down_key(self, event):
-        self._key_press(new_tilt=tilt_angle - 10)
-        print("down pressed")
+
+    def keydown(self, e):
+        stateChange = False
+        if e.keysym == "Up" and not globals.upKeyState:
+            globals.upKeyState = True
+            stateChange = True
+            # send tilt up command
+            self.sendServoControl("tiltUp")
+
+
+        elif e.keysym == "Down" and not globals.downKeyState:
+            globals.downKeyState = True
+            stateChange = True
+            # send tilt down command
+            self.sendServoControl("tiltDown")
+        
+        if stateChange:
+            print(e.keysym, 'pressed')
+
+    def sendServoControl(self, command):
+        requests.get(f"http://{globals.PI_IP}:5000/{command}")
+        print(f"send {command} command")  # optional feedback
 
     def reset_pan():
         global pan_speed_percent

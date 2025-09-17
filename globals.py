@@ -6,8 +6,11 @@ audio_url = "https://samplelib.com/lib/preview/mp3/sample-9s.mp3"
 # video_url = "tcp://192.168.77.1:5000"
 # audio_url = "http://10.173.94.23:8080"
 # audio_url = "http://192.168.77.1:8080"
-PI_IP = "192.168.0.145"
-# PI_IP = "10.173.94.23"  # Raspberry Pi IP
+# PI_IP = "192.168.0.145"
+PI_IP = "10.94.102.23"  # Raspberry Pi IP 
+
+upKeyState = False
+downKeyState = False
 
 streaming = False
 capture = None
