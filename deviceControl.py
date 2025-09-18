@@ -159,21 +159,21 @@ class DeviceControl(tk.Frame):
             self.awb_enabled.set(not self.awb_enabled.get())
             btn_awb.config(text=f"AWB: {'ON' if self.awb_enabled.get() else 'OFF'}")
 
-        btn_torch_1 = ttk.Button(
+        btn_torch_1 = tk.Button(
             cam_frame, 
             text=f"Torch 1: {'ON' if self.torch_1.get() else 'OFF'}", 
             command=torch_1_control
         )
         btn_torch_1.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
 
-        btn_torch_2 = ttk.Button(
+        btn_torch_2 = tk.Button(
             cam_frame, 
             text=f"Torch 1: {'ON' if self.torch_2.get() else 'OFF'}", 
             command=torch_2_control
         )
         btn_torch_2.grid(row=3, column=1, sticky="ew", padx=5, pady=5)
 
-        btn_awb = ttk.Button(
+        btn_awb = tk.Button(
             cam_frame,
             text=f"AWB: {'ON' if self.awb_enabled.get() else 'OFF'}",
             command=awb_control
@@ -227,7 +227,7 @@ class DeviceControl(tk.Frame):
         self.volume_slider.set(50)  # default volume
 
         # VLC player instance
-        self.instance = vlc.Instance('--quiet')
+        self.instance = vlc.Instance("--quiet --network-caching=100")
         self.player = self.instance.media_player_new()
 
 
