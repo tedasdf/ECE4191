@@ -412,41 +412,41 @@ class DeviceControl(tk.Frame):
     def stop_video_stream(self):
         globals.capture.release()
 
-    def move_servo(self, new_pan_speed_percent, new_tilt_angle):
-        global tilt_angle
-        if globals.streaming:
-            try:
-                # pan_speed_percent = max(0, min(180, new_pan_speed_percent))  # clamp between 0°–180°
-                tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
-                requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_speed_percent": pan_speed_percent, "tilt_angle": tilt_angle})
-                print(f"Moved to {pan_speed_percent}° pan and {tilt_angle}° tilt")  # optional feedback
-                self.reset_pan
-            except:
-                messagebox.showerror("Error", "No response from motor")
-        else:
-            print("Not currently streaming.")
-            return
+    # def move_servo(self, new_pan_speed_percent, new_tilt_angle):
+    #     global tilt_angle
+    #     if globals.streaming:
+    #         try:
+    #             # pan_speed_percent = max(0, min(180, new_pan_speed_percent))  # clamp between 0°–180°
+    #             tilt_angle = max(0, min(90, new_tilt_angle)) # clamp between 0°–90°
+    #             requests.get(f"http://{globals.PI_IP}:5000/servo", params={"pan_speed_percent": pan_speed_percent, "tilt_angle": tilt_angle})
+    #             print(f"Moved to {pan_speed_percent}° pan and {tilt_angle}° tilt")  # optional feedback
+    #             self.reset_pan
+    #         except:
+    #             messagebox.showerror("Error", "No response from motor")
+    #     else:
+    #         print("Not currently streaming.")
+    #         return
 
-    def _key_press(self, new_pan=None, new_tilt=None):
-        global pan_speed_percent
-        global tilt_angle
-        """Internal helper to safely move servo in a thread."""
-        now = time.time()
-        if now - self.last_key_time < self.key_cooldown:
-            return  # skip if too soon
-        self.last_key_time = now
+    # def _key_press(self, new_pan=None, new_tilt=None):
+    #     global pan_speed_percent
+    #     global tilt_angle
+    #     """Internal helper to safely move servo in a thread."""
+    #     now = time.time()
+    #     if now - self.last_key_time < self.key_cooldown:
+    #         return  # skip if too soon
+    #     self.last_key_time = now
 
-        if new_pan is not None:
-            pan_speed_percent = new_pan
-        if new_tilt is not None:
-            tilt_angle = max(0, min(90, new_tilt))
+    #     if new_pan is not None:
+    #         pan_speed_percent = new_pan
+    #     if new_tilt is not None:
+    #         tilt_angle = max(0, min(90, new_tilt))
 
-        # Run servo movement in a separate thread
-        threading.Thread(
-            target=self.move_servo,
-            args=(pan_speed_percent, tilt_angle),
-            daemon=True
-        ).start()
+    #     # Run servo movement in a separate thread
+    #     threading.Thread(
+    #         target=self.move_servo,
+    #         args=(pan_speed_percent, tilt_angle),
+    #         daemon=True
+    #     ).start()
 
 
     def keyup(self, e):
@@ -463,6 +463,18 @@ class DeviceControl(tk.Frame):
             # send tilt stop command
             self.sendServoControl("tiltStop")
 
+        elif e.keysym == "Left" and globals.leftKeyState:
+            globals.leftKeyState = False
+            stateChange = True
+            # send tilt stop command
+            self.sendServoControl("panStop")
+
+        elif e.keysym == "Right" and globals.rightKeyState:
+            globals.rightKeyState = False
+            stateChange = True
+            # send tilt stop command
+            self.sendServoControl("panStop")
+
         if stateChange:
             print(e.keysym, 'released')
 
@@ -475,19 +487,29 @@ class DeviceControl(tk.Frame):
             # send tilt up command
             self.sendServoControl("tiltUp")
 
-
         elif e.keysym == "Down" and not globals.downKeyState:
             globals.downKeyState = True
             stateChange = True
             # send tilt down command
             self.sendServoControl("tiltDown")
+
+        elif e.keysym == "Left" and not globals.leftKeyState:
+            globals.leftKeyState = True
+            stateChange = True
+            # send tilt down command
+            self.sendServoControl("panLeft")
+
+        elif e.keysym == "Right" and not globals.rightKeyState:
+            globals.rightKeyState = True
+            stateChange = True
+            # send tilt down command
+            self.sendServoControl("panRight")
         
         if stateChange:
             print(e.keysym, 'pressed')
 
     def sendServoControl(self, command):
         requests.get(f"http://{globals.PI_IP}:5000/{command}")
-        print(f"send {command} command")  # optional feedback
 
     def reset_pan():
         global pan_speed_percent

@@ -11,6 +11,8 @@ PI_IP = "10.94.102.23"  # Raspberry Pi IP
 
 upKeyState = False
 downKeyState = False
+leftKeyState = False
+rightKeyState = False
 
 streaming = False
 capture = None
