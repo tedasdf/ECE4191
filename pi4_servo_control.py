@@ -16,6 +16,7 @@ pwm_tilt = GPIO.PWM(SERVO_PIN_TILT, 50)  # 50 Hz
 pwm_pan.start(0)
 pwm_tilt.start(0)
 
+
 def set_tilt_angle(angle, SERVO_PIN, pwm):
     duty = 2 + (angle / 12)
     GPIO.output(SERVO_PIN, True)
@@ -41,4 +42,5 @@ def servo():
     set_tilt_angle(tilt_angle, SERVO_PIN_TILT, pwm_tilt)
     return f"Servo panned at {pan_speed_percent}% speed and {tilt_angle}° tilt"
 
-app.run(host="0.0.0.0", port=5000)
+# app.run(host="0.0.0.0", port=5000)
+
