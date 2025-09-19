@@ -225,7 +225,7 @@ class DeviceControl(tk.Frame):
         self.volume_slider.set(50)  # default volume
 
         # VLC player instance
-        self.instance = vlc.Instance("--quiet --network-caching=100")
+        self.instance = vlc.Instance("--quiet --network-caching=100 ")
         self.player = self.instance.media_player_new()
 
 
@@ -556,7 +556,8 @@ class DeviceControl(tk.Frame):
             print(e.keysym, 'pressed')
 
     def sendServoControl(self, command):
-        requests.get(f"http://{globals.PI_IP}:5000/{command}")
+        if globals.streaming:
+            requests.get(f"http://{globals.PI_IP}:5000/{command}")
 
     def reset_pan():
         global pan_speed_percent
