@@ -7,7 +7,7 @@ video_url = "https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
 audio_url = "http://10.94.102.23:8080"
 # audio_url = "http://192.168.77.1:8080"
 # PI_IP = "192.168.0.145"
-PI_IP = "10.94.102.23"  # Raspberry Pi IP 
+PI_IP = "10.94.102.23"  # Riley's Raspberry Pi IP 
 
 upKeyState = False
 downKeyState = False
