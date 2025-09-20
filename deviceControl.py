@@ -16,8 +16,8 @@ import numpy as np
 import wave
 import requests
 
-# Import the audio classifier
-from simple_classifier import SimpleAnimalClassifier
+# Import the high accuracy audio classifier
+from high_accuracy_classifier import HighAccuracyAnimalClassifier
 
 
 class DeviceControl(tk.Frame):
@@ -52,6 +52,8 @@ class DeviceControl(tk.Frame):
         self.classification_enabled = False
         self.classification_thread = None
         self.detected_creatures = []
+        self.creature_counts = {}  # Track occurrence counts for top 1 predictions
+        self.recent_predictions = []  # Store recent top 3 predictions
         
         # Initialize audio classifier in a separate thread to avoid blocking UI
         threading.Thread(target=self._init_audio_classifier, daemon=True).start()
@@ -102,9 +104,27 @@ class DeviceControl(tk.Frame):
 
         self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
         self.detect_listbox.pack(side="left", fill="both", expand=True)
+        self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
+        self.detect_listbox.pack(side="left", fill="both", expand=True)
 
         detect_scrollbar.config(command=self.detect_listbox.yview)
+        detect_scrollbar.config(command=self.detect_listbox.yview)
 
+        # Add initial message while audio classifier loads
+        self.detect_listbox.insert("end", "Audio classifier loading...")
+        self.detect_listbox.insert("end", "Please wait...")
+        
+        # Audio classification toggle button
+        audio_controls_frame = tk.Frame(detect_frame)
+        audio_controls_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+        
+        self.audio_classification_button = tk.Button(
+            audio_controls_frame, 
+            text="Start Audio Detection", 
+            command=self.toggle_audio_classification,
+            state=tk.DISABLED  # Disabled until classifier loads
+        )
+        self.audio_classification_button.pack(side="left", padx=5)
         # Add initial message while audio classifier loads
         self.detect_listbox.insert("end", "Audio classifier loading...")
         self.detect_listbox.insert("end", "Please wait...")
@@ -461,10 +481,10 @@ class DeviceControl(tk.Frame):
                 self.after(0, self._update_classifier_status, "Audio files not found")
                 return
             
-            # Initialize the classifier
-            self.audio_classifier = SimpleAnimalClassifier(audio_dir)
-            self.after(0, self._update_classifier_status, "Audio classifier ready")
-            print("Audio classifier initialized successfully!")
+            # Initialize the high accuracy classifier
+            self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir)
+            self.after(0, self._update_classifier_status, "High-accuracy classifier ready")
+            print("High-accuracy audio classifier initialized successfully!")
             
         except Exception as e:
             print(f"Error initializing audio classifier: {e}")
@@ -490,13 +510,17 @@ class DeviceControl(tk.Frame):
             self.classification_enabled = True
             self.audio_classification_button.config(text="Stop Audio Detection", bg="red")
             
+            # Reset occurrence counts when starting new session
+            self.creature_counts = {}
+            self.recent_predictions = []
+            
             # Start classification thread
             self.classification_thread = threading.Thread(target=self._classification_loop, daemon=True)
             self.classification_thread.start()
             
             self.detect_listbox.delete(0, tk.END)
-            self.detect_listbox.insert("end", "Audio detection started...")
-            print("Audio classification started")
+            self.detect_listbox.insert("end", "Audio detection started (10s intervals)...")
+            print("High-accuracy audio classification started (10-second intervals)")
         else:
             # Stop classification
             self.classification_enabled = False
@@ -515,8 +539,8 @@ class DeviceControl(tk.Frame):
                     # Convert deque to numpy array and flatten
                     audio_chunks = list(self.audio_buffer)
                     if audio_chunks:
-                        # Concatenate recent audio chunks (approximately 3 seconds)
-                        audio_data = np.concatenate(audio_chunks[-3:], axis=0)  # Last 3 chunks
+                        # Concatenate more recent audio chunks (approximately 10 seconds)
+                        audio_data = np.concatenate(audio_chunks[-10:], axis=0)  # Last 10 chunks for ~10 seconds
                         
                         # Convert to mono if stereo
                         if len(audio_data.shape) > 1:
@@ -535,8 +559,8 @@ class DeviceControl(tk.Frame):
                             # No meaningful audio detected
                             self.after(0, self._update_detections_silence)
                 
-                # Wait before next classification
-                time.sleep(3.0)  # 3-second intervals
+                # Wait before next classification (10 seconds to match high accuracy model)
+                time.sleep(10.0)  # 10-second intervals for high accuracy
                 
             except Exception as e:
                 print(f"Error in classification loop: {e}")
@@ -544,40 +568,66 @@ class DeviceControl(tk.Frame):
                 time.sleep(3.0)
     
     def _update_detections(self, predictions):
-        """Update the creatures detected listbox with predictions"""
+        """Update the creatures detected listbox with predictions and track occurrence counts"""
         if not self.classification_enabled:
             return
+            
+        # Track top 1 prediction occurrence
+        if predictions and len(predictions) > 0:
+            top_animal = predictions[0][0]
+            if top_animal in self.creature_counts:
+                self.creature_counts[top_animal] += 1
+            else:
+                self.creature_counts[top_animal] = 1
+        
+        # Store recent predictions for logging
+        self.recent_predictions.append(predictions)
+        if len(self.recent_predictions) > 20:  # Keep last 20 predictions
+            self.recent_predictions.pop(0)
             
         # Clear current list
         self.detect_listbox.delete(0, tk.END)
         
         # Add timestamp
         timestamp = datetime.datetime.now().strftime('%H:%M:%S')
-        self.detect_listbox.insert("end", f"🕒 {timestamp} - Audio Analysis:")
-        self.detect_listbox.insert("end", "=" * 40)
+        self.detect_listbox.insert("end", f"🕒 {timestamp} - Audio Analysis (10s):")
+        self.detect_listbox.insert("end", "=" * 45)
         
-        # Add top 3 predictions
+        # Add top 3 real-time predictions
         for i, (animal, confidence) in enumerate(predictions[:3], 1):
             confidence_percent = confidence * 100
             emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
             display_text = f"{emoji} #{i}: {animal:<12} ({confidence_percent:5.1f}%)"
             self.detect_listbox.insert("end", display_text)
         
-        self.detect_listbox.insert("end", "=" * 40)
+        self.detect_listbox.insert("end", "=" * 45)
+        
+        # Add occurrence summary for top detections
+        if self.creature_counts:
+            self.detect_listbox.insert("end", "📊 Detection Summary:")
+            # Sort by occurrence count
+            sorted_counts = sorted(self.creature_counts.items(), key=lambda x: x[1], reverse=True)
+            for animal, count in sorted_counts[:5]:  # Show top 5
+                self.detect_listbox.insert("end", f"   {animal}: {count} detections")
         
         # Auto-scroll to bottom
         self.detect_listbox.see(tk.END)
+        
+        # Log the prediction
+        top_prediction = predictions[0] if predictions else ("Unknown", 0.0)
+        log_msg = f"TOP: {top_prediction[0]} ({top_prediction[1]*100:.2f}%) [Count: {self.creature_counts.get(top_prediction[0], 0)}] | ALL: {', '.join([f'{name}({conf*100:.1f}%)' for name, conf in predictions[:3]])}"
+        print(f"Audio Detection Log: {log_msg}")
     
     def _update_detections_silence(self):
         """Update listbox when no meaningful audio detected"""
         if not self.classification_enabled:
             return
             
-        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
-        self.detect_listbox.delete(0, tk.END)
-        self.detect_listbox.insert("end", f"🕒 {timestamp}")
-        self.detect_listbox.insert("end", "🔇 Low audio level...")
-        self.detect_listbox.insert("end", "Listening for animal sounds...")
+        #timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        #self.detect_listbox.delete(0, tk.END)
+        #self.detect_listbox.insert("end", f"🕒 {timestamp} (10s interval)")
+        #self.detect_listbox.insert("end", "🔇 Low audio level...")
+        #self.detect_listbox.insert("end", "Listening for animal sounds...")
     
     def _update_detections_error(self, error_msg):
         """Update listbox when classification error occurs"""
@@ -586,6 +636,6 @@ class DeviceControl(tk.Frame):
             
         timestamp = datetime.datetime.now().strftime('%H:%M:%S')
         self.detect_listbox.delete(0, tk.END)
-        self.detect_listbox.insert("end", f"🕒 {timestamp}")
+        self.detect_listbox.insert("end", f"🕒 {timestamp} (10s interval)")
         self.detect_listbox.insert("end", f"❌ Error: {error_msg}")
-        self.detect_listbox.insert("end", "Retrying in 3 seconds...")
+        self.detect_listbox.insert("end", "Retrying in 10 seconds...")

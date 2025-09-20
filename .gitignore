@@ -6,3 +6,5 @@ functions_copy.py
 venv/
 ECE4191 - Potential Audio Targets/
 4191_audio2.0/
+high_accuracy_classifier.pkl
+high_accuracy_classifier.py
