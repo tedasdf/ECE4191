@@ -225,7 +225,7 @@ class DeviceControl(tk.Frame):
         self.volume_slider.set(50)  # default volume
 
         # VLC player instance
-        self.instance = vlc.Instance("--quiet --network-caching=100 ")
+        self.instance = vlc.Instance("--quiet --network-caching=0")
         self.player = self.instance.media_player_new()
 
 
@@ -249,6 +249,7 @@ class DeviceControl(tk.Frame):
         """
         Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
         """
+        print("audio stream started")
         media = self.instance.media_new(globals.audio_url)
         self.player.set_media(media)
         self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
