@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h2>YOLO Webcam Stream</h2>
+    <video id="video" autoplay playsinline></video>
+
+    <script>
+      async function start() {
+        const pc = new RTCPeerConnection();
+
+        // Receive remote video track
+        pc.ontrack = (event) => {
+          document.getElementById("video").srcObject = event.streams[0];
+        };
+
+        // Add a transceiver to ensure SDP has a video section
+        pc.addTransceiver("video", { direction: "recvonly" });
+
+        // Create offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        // Send offer to Python server
+        const resp = await fetch("/offer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pc.localDescription),
+        });
+
+        const answer = await resp.json();
+
+        if (answer.error) {
+          console.error("Server error:", answer.error);
+          return;
+        }
+
+        await pc.setRemoteDescription(answer);
+      }
+
+      start();
+    </script>
+  </body>
+</html>

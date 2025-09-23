@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebRTC Camera Stream</title>
+</head>
+<body>
+  <h1>WebRTC Camera Stream</h1>
+  <video id="video" autoplay playsinline></video>
+
+  <script>
+    const pc = new RTCPeerConnection();
+    const video = document.getElementById("video");
+
+    // Display remote track
+    pc.ontrack = (event) => {
+      video.srcObject = event.streams[0];
+    };
+
+    async function start() {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const response = await fetch("/offer", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(pc.localDescription)
+      });
+      const answer = await response.json();
+      await pc.setRemoteDescription(answer);
+    }
+
+    start();
+  </script>
+</body>
+</html>

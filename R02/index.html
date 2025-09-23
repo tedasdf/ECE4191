@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <video id="video" autoplay playsinline></video>
+    <script>
+    async function start() {
+    const pc = new RTCPeerConnection();
+
+    pc.addTransceiver("video", { direction: "recvonly" });
+
+    pc.ontrack = (event) => {
+        document.getElementById("video").srcObject = event.streams[0];
+    };
+
+    // Create offer
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    // Send to Python
+    const resp = await fetch("/offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pc.localDescription),
+    });
+
+    const answer = await resp.json();
+
+    // If the server returned an error
+    if (answer.error) {
+        console.error("Server error:", answer.error);
+        return;
+    }
+
+    await pc.setRemoteDescription(answer);
+    }
+    start();
+    </script>
+
+  </body>
+</html>
