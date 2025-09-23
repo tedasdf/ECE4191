@@ -20,6 +20,7 @@ from captures import Captures
 from connectionSetup import ConnectionSetup
 
 
+
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
         super().__init__()

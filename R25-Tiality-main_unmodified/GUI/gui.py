@@ -94,10 +94,10 @@ class ExplorerGUI:
         self.is_robot = is_robot
         
         # Setup display and resources
-        # self._load_background(background_image_path)
-        # self._init_display()
-        # self._init_fonts()
-        # self._init_camera_layout()
+        self._load_background(background_image_path)
+        self._init_display()
+        self._init_fonts()
+        self._init_camera_layout()
         
         # Initialise application state
         self._init_state()
@@ -119,7 +119,7 @@ class ExplorerGUI:
         
         # Setup Server and shared frame queue
         self.server_manager = TialityServerManager(
-            grpc_port = 50051,
+            grpc_port = 50051, 
             mqtt_port = mqtt_port, 
             mqtt_broker_host_ip = mqtt_broker_host_ip,
             decode_video_func = _decode_video_frame_opencv,
@@ -136,6 +136,16 @@ class ExplorerGUI:
     # ============================================================================
     # INIT METHODS
     # ============================================================================
+
+    def _load_background(self, image_path: str) -> None:
+        self.background = pygame.image.load(image_path)
+        logger.info(f"Background image loaded: {image_path}")
+        
+
+    def _init_display(self) -> None:
+        screen_size = (self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT)
+        self.screen = pygame.display.set_mode(screen_size)
+        pygame.display.set_caption("Wildlife Explorer - RC Car Controller")
 
     def _init_fonts(self) -> None:
         self.fonts = {
@@ -200,6 +210,13 @@ class ExplorerGUI:
         except Exception as e:
             logger.error(f"Command callback error: {e}")
 
+    def set_connection_status(self, status: ConnectionStatus) -> None:
+        """TODO: Set connection for GUI idk if you want to open a socket and send over on a port"""
+        self.connection_status = status
+
+    def start_camera_streams(self) -> None:
+        """TODO: Implement camera initialisation and streaming (Vinay)"""
+        pass
 
     # ============================================================================
     # MOVEMENT HANDLING
@@ -234,14 +251,155 @@ class ExplorerGUI:
     # ============================================================================
     # DRAWING METHODS
     # ============================================================================
+    def _collect_recent_frame(self):
+        """
+        Collect frames from server manager to display, currently only works for first display
+        """
+        #TODO: Add multiple camera functionality
+        self.camera_surfaces[0] = self.server_manager.get_video_frame()
+        # print(type(self.server_manager.get_video_frame()))
 
+    def _draw_cameras(self) -> None:
+        """Draw camera feeds and their status indicators."""
+        for camera_index in range(self.config.NUM_CAMERAS):
+            self._draw_single_camera(camera_index)
+            self._draw_camera_status(camera_index)
 
+    def _draw_single_camera(self, camera_index: int) -> None:
+        camera_surface = self.camera_surfaces[camera_index]
+        if camera_surface:
+            camera_position = self.camera_positions[camera_index]
+            self.screen.blit(camera_surface, camera_position)
 
+    def _draw_camera_status(self, camera_index: int) -> None:
+        indicator_position = self.camera_indicator_positions[camera_index]
+        is_camera_active = self.camera_states[camera_index]
+        indicator_colour = self.colours.GREEN if is_camera_active else self.colours.RED
+        
+        # Draw filled circle with white border
+        pygame.draw.circle(self.screen, indicator_colour, indicator_position, 8)
+        pygame.draw.circle(self.screen, self.colours.WHITE, indicator_position, 8, 3)
+
+    def _draw_movement_status(self) -> None:
+        """Draw current movement status overlay."""
+        active_movements = self._get_active_movements()
+        
+        if not active_movements:
+            return
+        
+        # Create movement status text
+        movement_text = " + ".join(active_movements)
+        status_text = f"MOVING: {movement_text}"
+        
+        # Render text and calculate position
+        text_surface = self.fonts['large'].render(status_text, True, self.colours.WHITE)
+        text_rect = text_surface.get_rect(center=(self.config.SCREEN_WIDTH // 2, 80))
+        
+        # Draw semi-transparent background
+        background_rect = text_rect.inflate(40, 20)
+        background_overlay = pygame.Surface(background_rect.size, pygame.SRCALPHA)
+        background_overlay.fill((0, 100, 0, 180))  # Semi-transparent green
+        
+        # Blit background and text
+        self.screen.blit(background_overlay, background_rect)
+        self.screen.blit(text_surface, text_rect)
+
+    def _draw_status_info(self) -> None:
+        """Draw connection and arm status information."""
+        status_y_position = self.config.SCREEN_HEIGHT - 50
+        
+        self._draw_connection_status(status_y_position)
+        self._draw_arm_status(status_y_position - 25)
+
+    def _draw_connection_status(self, y_position: int) -> None:
+        is_connected = (self.connection_status == ConnectionStatus.CONNECTED)
+        status_colour = self.colours.GREEN if is_connected else self.colours.RED
+        
+        status_text = f"Status: {self.connection_status.value}"
+        status_surface = self.fonts['medium'].render(status_text, True, status_colour)
+        
+        self.screen.blit(status_surface, (30, y_position))
+
+    def _draw_arm_status(self, y_position: int) -> None:
+        is_extended = (self.arm_state == ArmState.EXTENDED)
+        arm_colour = self.colours.GREEN if is_extended else self.colours.BLUE
+        
+        arm_text = f"Arm: {self.arm_state.value}"
+        arm_surface = self.fonts['medium'].render(arm_text, True, arm_colour)
+        
+        self.screen.blit(arm_surface, (30, y_position))
+
+    def draw_overlays(self) -> None:
+        """Draw all interactive overlays on top of the background image."""
+        self._draw_cameras()
+        self._draw_movement_status()
+        self._draw_status_info()
 
 
     # ============================================================================
     # HELP SYSTEM
     # ============================================================================
+
+    def show_help(self) -> None:
+        """Display help overlay and wait for user input."""
+        self._draw_help_overlay()
+        self._draw_help_text()
+        pygame.display.flip()
+        self._wait_for_keypress()
+
+    def _draw_help_overlay(self) -> None:
+        """Draw semi-transparent background for help text."""
+        screen_size = (self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT)
+        overlay = pygame.Surface(screen_size, pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))  # Semi-transparent black
+        self.screen.blit(overlay, (0, 0))
+
+    def _draw_help_text(self) -> None:
+        """Draw help text content."""
+        help_content = [
+            "WILDLIFE EXPLORER - RC Buggy",
+            "",
+            "KEYBOARD CONTROLS:",
+            "  WASD / Arrow Keys - Move car",
+            " E/R - Rotate Car"
+            "  Space - Emergency stop",
+            "  TODO: 1, 2 - Toggle cameras",
+            "  TODO: X - Extend arm",
+            "  TODO: C - Contract arm",
+            "  H - Show/hide this help",
+            "  ESC - Exit",
+            "",
+            "Press any key to close help"
+        ]
+        
+        starting_y = 150
+        line_spacing = 40
+        
+        for line_index, line_text in enumerate(help_content):
+            if not line_text:  # Skip empty lines
+                continue
+            
+            self._draw_help_line(line_text, line_index, starting_y, line_spacing)
+
+    def _draw_help_line(
+        self, 
+        text: str, 
+        line_index: int, 
+        starting_y: int, 
+        line_spacing: int
+    ) -> None:
+        # Choose font and colour based on line type
+        is_title = (line_index == 0)
+        font = self.fonts['large'] if is_title else self.fonts['medium']
+        colour = self.colours.YELLOW if is_title else self.colours.WHITE
+        
+        # Render and position text
+        text_surface = font.render(text, True, colour)
+        y_position = starting_y + line_index * line_spacing
+        text_rect = text_surface.get_rect(center=(self.config.SCREEN_WIDTH // 2, y_position))
+        
+        self.screen.blit(text_surface, text_rect)
+
     def _wait_for_keypress(self) -> None:
         waiting_for_input = True
         
@@ -407,18 +565,26 @@ class ExplorerGUI:
         else:
             self.handle_movement()
 
+    def render(self) -> None:
+        """Render the current frame."""
+        self._collect_recent_frame()
+        self.screen.blit(self.background, (0, 0))
+        self.draw_overlays()
+        pygame.display.flip()
+
     def run(self) -> None:
         """Main game loop with proper separation of concerns."""
         logger.info("Starting Wildlife Explorer GUI...")
         logger.info("Press 'H' for help, 'ESC' to exit")
         
         #TODO: Implement camera initialisation and streaming (Vinay)
-        # self.start_camera_streams()
+        self.start_camera_streams()
         
         try:
             while self.running:
                 self.handle_events()
                 self.update()
+                self.render()
                 self.clock.tick(self.config.FPS)
         except Exception as e:
             logger.error(f"Error in main loop: {e}")
@@ -442,8 +608,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Wildlife Explorer RC Car Controller")
     parser.add_argument("--robot", action='store_true', help="Whether to run the robot or sim")
-    parser.add_argument("--broker", default="10.1.1.78", help="MQTT broker host/IP for robot mode")
-    parser.add_argument("--broker_port", type=int, default=2883, help="MQTT broker TCP port for robot mode")
+    parser.add_argument("--broker", default="localhost", help="MQTT broker host/IP for robot mode")
+    parser.add_argument("--broker_port", type=int, default=1883, help="MQTT broker TCP port for robot mode")
     args = parser.parse_args()
     gui_type = "Robot" if args.robot else "Sim"
     print(f"Wildlife Explorer for {gui_type}")
@@ -452,7 +618,7 @@ if __name__ == "__main__":
     print()
     
     # Configure Background Path
-    image_path = "GUI/wildlife_explorer_cams_open.png"
+    image_path = "R25-Tiality-main_unmodified\GUI\wildlife_explorer_cams_open.png"
     
     if not os.path.exists(image_path):
         print(f"Image file '{image_path}' not found.")
