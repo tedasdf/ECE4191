@@ -201,7 +201,7 @@ class DeviceControl(tk.Frame):
         self.volume_slider.set(50)  # default volume
 
         # VLC player instance
-        self.instance = vlc.Instance('--quiet')
+        self.instance = vlc.Instance('--quiet --network-caching=0')
         self.player = self.instance.media_player_new()
 
 
