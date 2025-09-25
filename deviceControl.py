@@ -15,6 +15,7 @@ import sounddevice as sd
 import numpy as np
 import wave
 import requests
+from headless_controller import HeadlessController
 
 pan_speed_percent = 0  # start at middle
 tilt_angle = 0
@@ -22,6 +23,8 @@ tilt_angle = 0
 class DeviceControl(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
+        self.command_controller = HeadlessController(mqtt_broker_host_ip=globals.controller_IP.split(":")[0], mqtt_port=int(globals.controller_IP.split(":")[1]))
+        self.command_controller.start_loop(hz=1)
 
         ## Filenames
         self.recorded_audio_file = f"media/recorded_audio.ogg"
@@ -431,7 +434,7 @@ class DeviceControl(tk.Frame):
                 imgtk = ImageTk.PhotoImage(image=img)
                 self.video_label.imgtk = imgtk
                 self.video_label.config(image=imgtk)
-                self.video_label.after(1, video_loop)  # schedule next frame
+                self.video_label.after(30, video_loop)  # schedule next frame
                 self.frame_buffer.append(frame.copy()) # add recording to video buffer
             # else:
             #     if globals.streaming:
