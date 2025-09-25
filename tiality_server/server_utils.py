@@ -24,6 +24,8 @@ def _connection_manager_worker(
     """
     video_enabled = decode_video_func is not None and num_decode_video_workers > 0
 
+    print("attempting to connect")
+
     def try_start_threads():
         if shutdown_event.is_set():
             return  # stop retrying

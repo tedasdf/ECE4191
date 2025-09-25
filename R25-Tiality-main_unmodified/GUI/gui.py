@@ -630,7 +630,7 @@ if __name__ == "__main__":
         logger.info(f"GUI Command: {command}")
     
     try:
-        gui = ExplorerGUI(image_path, command_callback, args.robot, mqtt_broker_host_ip=args.broker, mqtt_port=args.broker_port)
+        gui = ExplorerGUI(image_path, command_callback, True, mqtt_broker_host_ip="10.1.1.78", mqtt_port=2883)
         gui.run()
     except KeyboardInterrupt:
         logger.info("Application interrupted by user")

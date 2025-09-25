@@ -17,6 +17,7 @@ class TialityServerManager:
           - Command-only mode
           - Video + command mode
         """
+        print("server manager created")
         self.servers_active = False
         self.decode_video_func = decode_video_func
         self.num_decode_video_workers = num_decode_video_workers

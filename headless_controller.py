@@ -10,6 +10,7 @@ class HeadlessController:
     def __init__(self, mqtt_broker_host_ip="localhost", mqtt_port=1883):
         pygame.init()
         pygame.joystick.init()
+        print("Controller started")
 
         self.joystick = None
         if pygame.joystick.get_count() > 0:
