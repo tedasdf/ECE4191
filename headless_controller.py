@@ -26,7 +26,8 @@ class HeadlessController:
         )
         self.server_manager.start_servers()
 
-        self.running = False
+        self.running = True
+
         self.clock = pygame.time.Clock()
 
     def send_command(self, command: str):
@@ -66,9 +67,9 @@ class HeadlessController:
 
     def update(self, hz):
         """Call this once per frame from tkinter loop."""
-        # for event in pygame.event.get():
-        #     if event.type == pygame.QUIT:
-        #         self.running = False
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
 
         if self.running:
             self._publish_robot_motion()
@@ -78,7 +79,7 @@ class HeadlessController:
         self.server_manager.close_servers()
         pygame.quit()
 
-    def start_loop(self, hz=30):
+    def start_loop(self, hz):
         """Run update loop in a background thread at ~hz frequency."""
         self.running = True
 

@@ -3,7 +3,6 @@ from .video_streaming import server as video_server
 from .video_streaming import decoder_worker
 from .command_streaming import publisher as command_publisher
 
-
 def _connection_manager_worker(
     grpc_port,
     incoming_video_queue,
@@ -17,68 +16,62 @@ def _connection_manager_worker(
     shutdown_event,
     decode_video_func=None,
     num_decode_video_workers=0,
+    threads_dict=None
 ):
     """
-    Thread to manage connections.
-    If decode_video_func and num_decode_video_workers > 0 are provided,
-    video producer + decoder threads will be started.
-    Otherwise, runs in command-only mode.
+    Non-blocking connection manager for video + command threads.
+    threads_dict: dictionary to track live threads
     """
-
     video_enabled = decode_video_func is not None and num_decode_video_workers > 0
 
-    video_producer_thread = None
-    video_decoder_threads = (
-        [None for _ in range(num_decode_video_workers)] if video_enabled else []
-    )
-    command_sender_thread = None
+    def try_start_threads():
+        if shutdown_event.is_set():
+            return  # stop retrying
 
-    try:
-        while not shutdown_event.is_set():
-            try:
-                # --- VIDEO (optional) ---
-                if video_enabled:
-                    if video_producer_thread is None or not video_producer_thread.is_alive():
-                        print("Waiting for Video Connection")
-                        video_producer_thread = threading.Thread(
-                            target=video_server.serve,
-                            args=(grpc_port, incoming_video_queue, connection_established_event, shutdown_event),
-                        )
-                        video_producer_thread.start()
-
-                    for i in range(num_decode_video_workers):
-                        if video_decoder_threads[i] is None or not video_decoder_threads[i].is_alive():
-                            video_decoder_threads[i] = threading.Thread(
-                                target=decoder_worker.start_decoder_worker,
-                                args=(incoming_video_queue, decoded_video_queue, decode_video_func, shutdown_event),
-                            )
-                            video_decoder_threads[i].start()
-
-                # --- COMMAND ---
-                if command_sender_thread is None or not command_sender_thread.is_alive():
-                    print("Waiting for Command Sending Connection")
-                    command_sender_thread = threading.Thread(
-                        target=command_publisher.publish_commands_worker,
-                        args=(mqtt_port, mqtt_broker_host_ip, command_queue, tx_topic, shutdown_event),
+        try:
+            # --- Video ---
+            if video_enabled:
+                if threads_dict["video_producer"] is None or not threads_dict["video_producer"].is_alive():
+                    threads_dict["video_producer"] = threading.Thread(
+                        target=video_server.serve,
+                        args=(grpc_port, incoming_video_queue, connection_established_event, shutdown_event),
+                        daemon=True
                     )
-                    command_sender_thread.start()
-                    connection_established_event.set()
+                    threads_dict["video_producer"].start()
 
-            except Exception as e:
-                print(f"Exception Encountered: {e}")
-    finally:
-        print("Ensuring Threads successfully shutdown")
+                for i in range(num_decode_video_workers):
+                    if threads_dict["video_decoders"][i] is None or not threads_dict["video_decoders"][i].is_alive():
+                        threads_dict["video_decoders"][i] = threading.Thread(
+                            target=decoder_worker.start_decoder_worker,
+                            args=(incoming_video_queue, decoded_video_queue, decode_video_func, shutdown_event),
+                            daemon=True
+                        )
+                        threads_dict["video_decoders"][i].start()
 
-        # Close video threads if used
-        if video_producer_thread and video_producer_thread.is_alive():
-            video_producer_thread.join()
+            # --- Command ---
+            if threads_dict["command_sender"] is None or not threads_dict["command_sender"].is_alive():
+                threads_dict["command_sender"] = threading.Thread(
+                    target=command_publisher.publish_commands_worker,
+                    args=(mqtt_port, mqtt_broker_host_ip, command_queue, tx_topic, shutdown_event),
+                    daemon=True
+                )
+                threads_dict["command_sender"].start()
+                connection_established_event.set()
 
-        for video_decoder_thread in video_decoder_threads:
-            if video_decoder_thread and video_decoder_thread.is_alive():
-                video_decoder_thread.join()
+        except Exception as e:
+            print(f"Exception in connection manager: {e}")
 
-        # Close command thread
-        if command_sender_thread and command_sender_thread.is_alive():
-            command_sender_thread.join()
+        # Retry after 2 seconds if not shutdown
+        if not shutdown_event.is_set():
+            threading.Timer(2.0, try_start_threads).start()
 
-        print("Connections shut down")
+    # Initial attempt
+    try_start_threads()
+
+    # Wait until shutdown
+    shutdown_event.wait()
+
+    # Clean up threads
+    for t in threads_dict.get("video_decoders", []) + [threads_dict.get("video_producer"), threads_dict.get("command_sender")]:
+        if t and t.is_alive():
+            t.join()

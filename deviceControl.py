@@ -24,7 +24,7 @@ class DeviceControl(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.command_controller = HeadlessController(mqtt_broker_host_ip=globals.controller_IP.split(":")[0], mqtt_port=int(globals.controller_IP.split(":")[1]))
-        self.command_controller.start_loop(hz=1)
+        
 
         ## Filenames
         self.recorded_audio_file = f"media/recorded_audio.ogg"
@@ -472,6 +472,7 @@ class DeviceControl(tk.Frame):
             self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
             video_loop()
+            self.command_controller.start_loop(hz=30)
 
             # Now start audio
             # self.audio_stream_process = subprocess.Popen(
