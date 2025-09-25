@@ -7,7 +7,8 @@ audio_url = "https://samplelib.com/lib/preview/mp3/sample-9s.mp3"
 # audio_url = "http://10.94.102.23:8080"
 audio_url = "http://192.168.137.2:8080/audio.mp3"
 # PI_IP = "192.168.0.145"
-PI_IP = "10.94.102.23"  # Riley's Raspberry Pi IP 
+PI_IP = "10.94.102.23"  # Riley's Raspberry Pi IP
+controller_IP = "10.1.1.17:2886" # R25's MQTT server address from memory
 
 upKeyState = False
 downKeyState = False

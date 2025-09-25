@@ -10,6 +10,7 @@ import threading
 import time
 import datetime
 from collections import deque
+import logging
 
 import sounddevice as sd
 import numpy as np
@@ -18,8 +19,9 @@ import wave
 from deviceControl import DeviceControl
 from captures import Captures
 from connectionSetup import ConnectionSetup
+from headless_controller import HeadlessController
 
-
+# logging.basicConfig(level=logging.INFO)
 
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
@@ -68,6 +70,9 @@ class WildlifeBotApp(tk.Tk):
             frame = F(container)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
+        
+        # Start controller loop in background
+        # self.controller.start_loop(hz=30)
 
         # Show the DeviceControl screen first
         self.show_frame(DeviceControl)
@@ -77,6 +82,17 @@ class WildlifeBotApp(tk.Tk):
         frame.tkraise()  # bring the frame to the top 
 
 
+    def send_command(self, cmd):
+        self.controller.send_command(cmd.encode())
+
+    def quit_app(self):
+        self.controller.stop_loop()
+        self.controller.cleanup()
+        self.destroy()
+
+
 if __name__ == "__main__":
+    # controller = HeadlessController(mqtt_broker_host_ip=globals.controller_IP.split(":")[0], mqtt_port=int(globals.controller_IP.split(":")[1]))
+    # controller = None
     app = WildlifeBotApp()
     app.mainloop()
