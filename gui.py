@@ -79,4 +79,6 @@ class WildlifeBotApp(tk.Tk):
 
 if __name__ == "__main__":
     app = WildlifeBotApp()
+    # add.state("zoomed")  # fullscreen for Windows
+    #app.attributes("-fullscreen", True)  # fullscreen for Linux
     app.mainloop()
