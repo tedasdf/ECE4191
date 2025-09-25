@@ -482,7 +482,19 @@ class DeviceControl(tk.Frame):
                 return
             
             # Initialize the high accuracy classifier
-            self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir)
+            # Ensure logs directory exists and use it for both model and GUI logging
+            self.logs_dir = os.path.join(os.getcwd(), "logs", "audio")
+            os.makedirs(self.logs_dir, exist_ok=True)
+            # GUI-side log file for top-1 occurrences
+            self.gui_log_path = os.path.join(self.logs_dir, "gui_audio_top1.log")
+            if not os.path.exists(self.gui_log_path):
+                try:
+                    with open(self.gui_log_path, "a") as f:
+                        f.write(f"# GUI Audio Top-1 Log - started {datetime.datetime.now().isoformat()}\n")
+                except Exception:
+                    pass
+
+            self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir, logs_dir=self.logs_dir)
             self.after(0, self._update_classifier_status, "High-accuracy classifier ready")
             print("High-accuracy audio classifier initialized successfully!")
             
@@ -617,6 +629,13 @@ class DeviceControl(tk.Frame):
         top_prediction = predictions[0] if predictions else ("Unknown", 0.0)
         log_msg = f"TOP: {top_prediction[0]} ({top_prediction[1]*100:.2f}%) [Count: {self.creature_counts.get(top_prediction[0], 0)}] | ALL: {', '.join([f'{name}({conf*100:.1f}%)' for name, conf in predictions[:3]])}"
         print(f"Audio Detection Log: {log_msg}")
+        # Append to GUI-side log file
+        try:
+            if hasattr(self, 'gui_log_path') and self.gui_log_path:
+                with open(self.gui_log_path, "a") as f:
+                    f.write(f"{datetime.datetime.now().isoformat()} - {log_msg}\n")
+        except Exception:
+            pass
     
     def _update_detections_silence(self):
         """Update listbox when no meaningful audio detected"""
