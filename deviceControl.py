@@ -23,7 +23,10 @@ tilt_angle = 0
 class DeviceControl(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-        self.command_controller = HeadlessController(mqtt_broker_host_ip="10.1.1.78", mqtt_port=2883)
+        self.command_controller = HeadlessController(
+            mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
+            mqtt_port=int(globals.controller_IP.split(":")[1])
+            )
         # print(globals.controller_IP.split(":")[0], int(globals.controller_IP.split(":")[1]))
         self.command_controller.start_loop(30)
 
@@ -45,6 +48,23 @@ class DeviceControl(tk.Frame):
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
         
         self.audio_stream_process = None
+
+        # temp code for testing lag
+        # click_time = [0]
+
+        # def on_click():
+        #     now = time.time()
+        #     latency_ms = (now - click_time[0]) * 1000
+        #     print(f"GUI response latency: {latency_ms:.2f} ms")
+
+        # def register_click(event):
+        #     click_time[0] = time.time()  # record press timestamp
+        #     self.after_idle(on_click)    # schedule callback ASAP
+
+        # btn = tk.Button(self, text="Click Me")
+        # btn.pack(padx=20, pady=20)
+        # btn.bind("<Button-1>", register_click)
+
         
         # Start the audio capture in a background thread
         threading.Thread(target=self._audio_capture_loop, daemon=True).start()
@@ -568,3 +588,7 @@ class DeviceControl(tk.Frame):
     def reset_pan():
         global pan_speed_percent
         pan_speed_percent = 0
+
+
+
+    

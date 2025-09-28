@@ -22,6 +22,7 @@ from connectionSetup import ConnectionSetup
 from headless_controller import HeadlessController
 
 # logging.basicConfig(level=logging.INFO)
+i = 0
 
 class WildlifeBotApp(tk.Tk):
     def __init__(self):
@@ -29,6 +30,8 @@ class WildlifeBotApp(tk.Tk):
         self.title("Wildlife Bot")
         self.configure(bg="lightgray")
         self.resizable(False, False)
+
+        global i
 
          # --- Top Menu Bar ---
         top_frame = tk.Frame(self, bg="white", pady=5)
@@ -76,6 +79,8 @@ class WildlifeBotApp(tk.Tk):
 
         # Show the DeviceControl screen first
         self.show_frame(DeviceControl)
+        # i = i+1
+        # print(f"display {i}")
 
     def show_frame(self, screen):
         frame = self.frames[screen] 
