@@ -28,6 +28,7 @@ class WebRTCStream:
 
     async def connect_to_server(self, vid_label: tk.Label=None, frame_buffer: list=None, stop_event=None):
         pc = RTCPeerConnection()
+        self.stop_event = asyncio.Event()
 
         pc.addTransceiver("video", direction="recvonly")
         # pc.addTransceiver("audio", direction="recvonly")
@@ -86,20 +87,26 @@ class WebRTCStream:
         self.peer_connection = pc
 
         # Keep the connection alive
-        try:
-            while not (self.stop_event and self.stop_event.is_set()):
-                await asyncio.sleep(0.1)
-        except KeyboardInterrupt:
-            pass
+        # try:
+        #     while not self.stop_event.is_set():
+        #         await asyncio.sleep(1)
+        #         print("Connection alive...")
+        # except KeyboardInterrupt:
+        #     pass
+
+        await self.stop_event.wait()
+        await self.peer_connection.close()
+        self.peer_connection = None
+        self.whep_answer = None        
+
+        print("Exiting connection loop")
 
 
     async def close_connection(self):
-        await self.peer_connection.close()
-        # Reset state
         self.stop_event.set() # Close the connection loop
-        self.stop_event = asyncio.Event()
-        self.peer_connection = None
-        self.whep_answer = None
+        # Reset state
+        # self.stop_event = asyncio.Event()
+        print("Connection closed")
 
 async def display_frames(buffer, stop_event: asyncio.Event):
     print("Display frame running")

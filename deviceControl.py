@@ -65,8 +65,10 @@ class DeviceControl(tk.Frame):
         self.awb_enabled = tk.BooleanVar(value=False)
 
         ########
-        self.webrtc_client = WebRTCStream("http://192.168.0.236:8889/blacklist")
+        self.webrtc_client = WebRTCStream("http://192.168.77.1:8889/cam")
         self.webrtc_loop = None
+        self.webrtc_connection_future = None
+        self.webrtc_close_future = None
         
         self.layout()
 
@@ -466,7 +468,6 @@ class DeviceControl(tk.Frame):
         #             messagebox.showerror("Error", "Audio Disconnected")
         #             return
 
-
         if not globals.streaming:
             # Start video stream if not streaming
             # globals.capture = cv2.VideoCapture(globals.video_url)
@@ -477,7 +478,7 @@ class DeviceControl(tk.Frame):
             # video_loop()
             self.webrtc_loop = asyncio.new_event_loop()
             threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
-            asyncio.run_coroutine_threadsafe(
+            self.webrtc_connection_future = asyncio.run_coroutine_threadsafe(
                 self.webrtc_client.connect_to_server(
                     vid_label=self.video_label,
                     frame_buffer=self.frame_buffer
@@ -500,11 +501,12 @@ class DeviceControl(tk.Frame):
             # Stop video and audio stream if already streaming
             globals.streaming = False
             # globals.capture.release()
-            future = asyncio.run_coroutine_threadsafe(
+            self.webrtc_close_future = asyncio.run_coroutine_threadsafe(
                 self.webrtc_client.close_connection(),
                 self.webrtc_loop
             )
-            future.result()  # wait for closure to complete
+            self.webrtc_connection_future.result()  # wait for connection to finish
+            self.webrtc_close_future.result()  # wait for closure to complete
 
             if self.webrtc_loop:
                 self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
