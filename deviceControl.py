@@ -11,6 +11,9 @@ import time
 import datetime
 from collections import deque
 
+from webRTC import WebRTCStream
+import asyncio
+
 import sounddevice as sd
 import numpy as np
 import wave
@@ -60,6 +63,10 @@ class DeviceControl(tk.Frame):
         self.torch_1 = tk.BooleanVar(value=False)
         self.torch_2 = tk.BooleanVar(value=False)
         self.awb_enabled = tk.BooleanVar(value=False)
+
+        ########
+        self.webrtc_client = WebRTCStream("http://192.168.0.236:8889/blacklist")
+        self.webrtc_loop = None
         
         self.layout()
 
@@ -460,15 +467,23 @@ class DeviceControl(tk.Frame):
         #             return
 
 
-
-
         if not globals.streaming:
             # Start video stream if not streaming
-            globals.capture = cv2.VideoCapture(globals.video_url)
+            # globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
             self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
-            video_loop()
+            
+            # video_loop()
+            self.webrtc_loop = asyncio.new_event_loop()
+            threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
+            asyncio.run_coroutine_threadsafe(
+                self.webrtc_client.connect_to_server(
+                    vid_label=self.video_label,
+                    frame_buffer=self.frame_buffer
+                ),
+                self.webrtc_loop
+            )
 
             # Now start audio
             # self.audio_stream_process = subprocess.Popen(
@@ -484,7 +499,17 @@ class DeviceControl(tk.Frame):
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
-            globals.capture.release()
+            # globals.capture.release()
+            future = asyncio.run_coroutine_threadsafe(
+                self.webrtc_client.close_connection(),
+                self.webrtc_loop
+            )
+            future.result()  # wait for closure to complete
+
+            if self.webrtc_loop:
+                self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
+                self.webrtc_loop = None
+
             self.stop_audio_stream()
             # audio_stream.stop_stream()
             # audio_stream.close()
