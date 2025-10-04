@@ -65,10 +65,12 @@ class DeviceControl(tk.Frame):
         self.awb_enabled = tk.BooleanVar(value=False)
 
         ########
-        self.webrtc_client = WebRTCStream("http://192.168.77.1:8889/cam")
+        self.webrtc_client = WebRTCStream("http://192.168.0.236:8889/thunderbolt")
         self.webrtc_loop = None
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
+
+        self.webrtc_client.start_thread()
         
         self.layout()
 
@@ -430,18 +432,27 @@ class DeviceControl(tk.Frame):
             return img_float
 
         def video_loop():
-            ret, frame = globals.capture.read()
-            if ret:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                #frame = cv2.resize(frame, (600, 400))  # fit the label size
-                if self.awb_enabled.get():
-                    frame = gray_world_awb(frame)
-                img = Image.fromarray(frame)
-                imgtk = ImageTk.PhotoImage(image=img)
-                self.video_label.imgtk = imgtk
-                self.video_label.config(image=imgtk)
-                self.video_label.after(1, video_loop)  # schedule next frame
-                self.frame_buffer.append(frame.copy()) # add recording to video buffer
+            # Get the frame from the webrtc thread
+            frame = self.webrtc_client.get_frame()
+            if frame is None:
+                self.video_label.after(20, video_loop)  # schedule next frame
+                return
+            
+            # Some basic image processing
+            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #frame = cv2.resize(frame, (600, 400))  # fit the label size
+            if self.awb_enabled.get():
+                frame = gray_world_awb(frame)
+
+            # Display the frame in the GUI
+            img = Image.fromarray(frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.config(image=imgtk)
+
+            # Schedule the next frame update
+            self.video_label.after(20, video_loop)  # schedule next frame
+            self.frame_buffer.append(frame.copy()) # add recording to video buffer
             # else:
             #     if globals.streaming:
             #         globals.streaming = False
@@ -475,16 +486,22 @@ class DeviceControl(tk.Frame):
             self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
             
-            # video_loop()
-            self.webrtc_loop = asyncio.new_event_loop()
-            threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
-            self.webrtc_connection_future = asyncio.run_coroutine_threadsafe(
-                self.webrtc_client.connect_to_server(
-                    vid_label=self.video_label,
-                    frame_buffer=self.frame_buffer
-                ),
-                self.webrtc_loop
-            )
+            self.webrtc_client.set_stream_link(globals.video_url)
+            
+            self.webrtc_client.start_thread()
+            self.webrtc_client.start_connection()
+
+            video_loop()
+
+            # self.webrtc_loop = asyncio.new_event_loop()
+            # threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
+            # self.webrtc_connection_future = asyncio.run_coroutine_threadsafe(
+            #     self.webrtc_client.connect_to_server(
+            #         vid_label=self.video_label,
+            #         frame_buffer=self.frame_buffer
+            #     ),
+            #     self.webrtc_loop
+            # )
 
             # Now start audio
             # self.audio_stream_process = subprocess.Popen(
@@ -501,16 +518,24 @@ class DeviceControl(tk.Frame):
             # Stop video and audio stream if already streaming
             globals.streaming = False
             # globals.capture.release()
-            self.webrtc_close_future = asyncio.run_coroutine_threadsafe(
-                self.webrtc_client.close_connection(),
-                self.webrtc_loop
-            )
-            self.webrtc_connection_future.result()  # wait for connection to finish
-            self.webrtc_close_future.result()  # wait for closure to complete
+            # print("Stopping WebRTC connection...")
+            # self.webrtc_close_future = asyncio.run_coroutine_threadsafe(
+            #     self.webrtc_client.close_connection(),
+            #     self.webrtc_loop
+            # )
+            # print("Waiting for WebRTC connection to close...")
+            # self.webrtc_close_future.result()  # wait for closure to complete
+            # print("Waiting for WebRTC connection thread to finish...")
+            # self.webrtc_connection_future.result()  # wait for connection to finish
 
-            if self.webrtc_loop:
-                self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
-                self.webrtc_loop = None
+            # print("WebRTC connection closed.")
+            # if self.webrtc_loop:
+            #     self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
+            #     self.webrtc_loop = None
+            # print("WebRTC event loop stopped.")
+
+            self.webrtc_client.stop_connection()
+            # self.webrtc_client.close_thread()
 
             self.stop_audio_stream()
             # audio_stream.stop_stream()
