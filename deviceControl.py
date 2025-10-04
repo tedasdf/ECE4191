@@ -17,8 +17,10 @@ import wave
 import requests
 from headless_controller import HeadlessController
 
-pan_speed_percent = 0  # start at middle
+# pan_speed_percent = 0  # start at middle
+pan_angle = 45
 tilt_angle = 0
+crane_angle = 0
 
 class DeviceControl(tk.Frame):
     def __init__(self, parent):
@@ -529,6 +531,7 @@ class DeviceControl(tk.Frame):
             stateChange = True
             # send tilt stop command
             self.sendServoControl("tiltStop")
+            
 
         elif e.keysym == "Down" and globals.downKeyState:
             globals.downKeyState = False
@@ -553,30 +556,59 @@ class DeviceControl(tk.Frame):
 
 
     def keydown(self, e):
+        global pan_angle
+        global tilt_angle
+        global crane_angle
+
+
         stateChange = False
         if e.keysym == "Up" and not globals.upKeyState:
             globals.upKeyState = True
             stateChange = True
             # send tilt up command
             self.sendServoControl("tiltUp")
+            try:
+                tilt_angle = min(tilt_angle + 10, 90)
+                print(f"tilt angle {tilt_angle}")
+                self.command_controller.send_gimbal_command("y", tilt_angle)
+            except:
+                pass
 
         elif e.keysym == "Down" and not globals.downKeyState:
             globals.downKeyState = True
             stateChange = True
             # send tilt down command
             self.sendServoControl("tiltDown")
+            try:
+                tilt_angle = max(tilt_angle - 10, 0)
+                print(f"tilt angle {tilt_angle}")
+                self.command_controller.send_gimbal_command("y", tilt_angle)
+            except:
+                pass
 
         elif e.keysym == "Left" and not globals.leftKeyState:
             globals.leftKeyState = True
             stateChange = True
             # send tilt down command
             self.sendServoControl("panLeft")
+            try:
+                pan_angle = min(pan_angle + 5, 90)
+                print(f"pan angle {pan_angle}")
+                self.command_controller.send_gimbal_command("x", pan_angle)
+            except:
+                pass
 
         elif e.keysym == "Right" and not globals.rightKeyState:
             globals.rightKeyState = True
             stateChange = True
             # send tilt down command
             self.sendServoControl("panRight")
+            try:
+                pan_angle = max(pan_angle - 5, 0)
+                print(f"pan angle {pan_angle}")
+                self.command_controller.send_gimbal_command("x", pan_angle)
+            except:
+                pass
         
         if stateChange:
             print(e.keysym, 'pressed')
