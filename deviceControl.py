@@ -16,6 +16,9 @@ import numpy as np
 import wave
 import requests
 
+import socket
+import pyaudio
+
 # Import the high accuracy audio classifier
 from high_accuracy_classifier import HighAccuracyAnimalClassifier
 
@@ -35,14 +38,25 @@ class DeviceControl(tk.Frame):
         self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)    # where frames for the past clip are stored
 
         ## Audio Stream stuff
+        # audio stream settings
+        self.AUDIO_IP = "0.0.0.0"
+        self.AUDIO_PORT = 5004
+        self.AUDIO_CHUNK_SIZE = 1024
+        self.AUDIO_FORMAT = pyaudio.paInt16
+        self.AUDIO_CHANNELS = 1
+        self.AUDIO_RATE = 44100
+
         # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
-        self.audio_sample_rate = 44100  
-        self.audio_channels = 2
-        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
+        # self.audio_sample_rate = 44100  
+        # self.audio_channels = 2
+        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.AUDIO_RATE // self.AUDIO_CHUNK_SIZE)  # 1024-frame chunks
         
         self.audio_stream_process = None
-        
+
+        # create a global variable for the audio player loop so that it can be started and stopped
+        self.audio_player_thread = None
+
         # Start the audio capture in a background thread
         threading.Thread(target=self._audio_capture_loop, daemon=True).start()
 
@@ -220,23 +234,6 @@ class DeviceControl(tk.Frame):
         self.player.audio_set_volume(int(value))
 
 
-    ### audio stream control functions
-    def play_audio_stream(self):
-        """
-        Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
-        """
-        media = self.instance.media_new(globals.audio_url)
-        self.player.set_media(media)
-        self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
-        self.player.play()
-
-
-    def stop_audio_stream(self):
-        """
-        Stops the audio stream that is playing
-        """
-        self.player.stop()
-
     ### Video capture rolling buffer 
     def save_last_video(self):
         output_file = self._name_output_file("media/video_clip.mp4")
@@ -256,7 +253,7 @@ class DeviceControl(tk.Frame):
     ### Live Recording Functions
     def toggle_recording(self):
         """
-        Toggles the recording function. This is to be called by the recording button whne the user presses it
+        Toggles the recording function. This is to be called by the recording button when the user presses it
         """
         if not self.recording:
             # Start recording
@@ -336,8 +333,8 @@ class DeviceControl(tk.Frame):
             self.audio_buffer.append(indata.copy())
 
         with sd.InputStream(
-            samplerate=self.audio_sample_rate,
-            channels=self.audio_channels,
+            samplerate=self.AUDIO_RATE,
+            channels=self.AUDIO_CHANNELS,
             blocksize=1024,  # chunk size
             callback=callback
         ):
@@ -363,9 +360,9 @@ class DeviceControl(tk.Frame):
 
         # Write to WAV file
         with wave.open(write_file, "wb") as wf:
-            wf.setnchannels(self.audio_channels)
+            wf.setnchannels(self.AUDIO_CHANNELS)
             wf.setsampwidth(2)  # 16-bit
-            wf.setframerate(self.audio_sample_rate)
+            wf.setframerate(self.AUDIO_RATE)
             wf.writeframes(pcm_data.tobytes())
 
         print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
@@ -387,58 +384,41 @@ class DeviceControl(tk.Frame):
                     globals.streaming = False
                     self.stream_toggle_button.config(text="Start Stream")
                     self.video_label.config(image=self.stream_standby_photo)
-                    # audio_stream.stop_stream()
-                    # audio_stream.close()
-                    # p.termiate()
                     messagebox.showerror("Error", "Video Disconnected")
                     return
 
-        # def audio_loop():
-        #     audio_data = self.audio_stream_process.stdout.read(4096)
-            
-        #     if audio_data:
-        #         audio_stream.write(audio_data)
-        #         self.after(15, audio_loop)
-        #     else:
-        #         if globals.streaming:
-        #             globals.streaming = False
-        #             self.stream_toggle_button.config(text="Start Stream")
-        #             self.video_label.config(image=self.stream_standby_photo)
-        #             globals.capture.release()
-        #             messagebox.showerror("Error", "Audio Disconnected")
-        #             return
-            
-            
+
+        def _audio_stream_loop(sock):
+            while True:
+                data, _ = sock.recvfrom(self.AUDIO_CHUNK_SIZE * 32)  # 2 bytes per sample
+                self.audio_stream.write(data)
+                # add audio chunk to buffer
+
+                if not globals.streaming:
+                    return
             
 
         if not globals.streaming:
             # Start video stream if not streaming
             globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
-            self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
             video_loop()
 
-            # Now start audio
-            # self.audio_stream_process = subprocess.Popen(
-            #     ["ffmpeg", "-i", globals.audio_url, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "-"],
-            #     stdout=subprocess.PIPE,
-            #     stderr=subprocess.DEVNULL            
-            # )
+            # create a socket and bind it to the audio stream ip and port
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.bind((self.AUDIO_IP, self.AUDIO_PORT))
+            
+            # Initialize PyAudio
+            p = pyaudio.PyAudio()
+            self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
 
-            # p = pyaudio.PyAudio()
-            # audio_stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, output=True)
-            # threading.Thread(target=audio_loop, daemon=True).start()
+            threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start()
 
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
             globals.capture.release()
-            self.stop_audio_stream()
-            # audio_stream.stop_stream()
-            # audio_stream.close()
-            # p.termiate()
-   
 
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)
@@ -494,7 +474,7 @@ class DeviceControl(tk.Frame):
                 except Exception:
                     pass
 
-            self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir, logs_dir=self.logs_dir)
+            self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir)
             self.after(0, self._update_classifier_status, "High-accuracy classifier ready")
             print("High-accuracy audio classifier initialized successfully!")
             
