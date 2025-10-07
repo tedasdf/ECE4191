@@ -1,12 +1,8 @@
-import asyncio, cv2, requests, typing
+import asyncio, cv2
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamError, MediaStreamTrack
 import aiohttp
 import queue
 import threading
-
-from PIL import Image, ImageTk
-import tkinter as tk
-
 
 class WebRTCStream:
     def __init__(self, link="192.168.77.1"):

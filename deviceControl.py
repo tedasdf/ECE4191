@@ -12,7 +12,7 @@ import datetime
 from collections import deque
 
 from webRTC import WebRTCStream
-import asyncio
+from ultralytics import YOLO
 
 import sounddevice as sd
 import numpy as np
@@ -70,8 +70,10 @@ class DeviceControl(tk.Frame):
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
 
+        self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
+        self.toggle_model = False
+
         self.webrtc_client.start_thread()
-        
         self.layout()
 
 
@@ -208,7 +210,13 @@ class DeviceControl(tk.Frame):
         self.record_button.grid(row=0, column=2, sticky="nsew")
         self.stream_toggle_button.grid(row=1, column=0, sticky="nsew")
         # tk.Button(button_frame, text="Audio filter toggle", width=18).grid(row=1, column=1, sticky="nsew")
-        tk.Button(button_frame, text="Bounding Box Toggle", width=18).grid(row=1, column=2, sticky="nsew")
+
+        def toggle_yolo():
+            self.toggle_model = not self.toggle_model
+            btn_yolo.config(text=f"YOLO Model: {'ON' if self.toggle_model else 'OFF'}")
+
+        btn_yolo = tk.Button(button_frame, text="Bounding Box Toggle", width=18, command=toggle_yolo)
+        btn_yolo.grid(row=1, column=2, sticky="nsew")
         
         # --- Audio Section ---
         bottom_frame = tk.Frame(self)
@@ -407,6 +415,7 @@ class DeviceControl(tk.Frame):
         print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
 
     def stream_toggle(self):
+
         def gray_world_awb(img):
             # Convert to float
             img_float = img.astype(np.float32)
@@ -433,16 +442,29 @@ class DeviceControl(tk.Frame):
 
         def video_loop():
             # Get the frame from the webrtc thread
+            if (not globals.streaming):
+                print("Video loop: Not streaming, exiting video loop")
+                return
+
             frame = self.webrtc_client.get_frame()
             if frame is None:
-                self.video_label.after(20, video_loop)  # schedule next frame
+                # self.video_label.after(20, video_loop)  # schedule next frame
+                print("No frame received")
                 return
             
+            if self.toggle_model:
+                results = self.yolo_model(frame, conf=0.8)
+
+
             # Some basic image processing
             # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             #frame = cv2.resize(frame, (600, 400))  # fit the label size
             if self.awb_enabled.get():
                 frame = gray_world_awb(frame)
+
+            if self.toggle_model:
+                annotated_frame = results[0].plot()
+                frame = annotated_frame
 
             # Display the frame in the GUI
             img = Image.fromarray(frame)
@@ -536,6 +558,7 @@ class DeviceControl(tk.Frame):
 
             self.webrtc_client.stop_connection()
             # self.webrtc_client.close_thread()
+            print("WebRTC connection closed.")
 
             self.stop_audio_stream()
             # audio_stream.stop_stream()
