@@ -11,6 +11,9 @@ import time
 import datetime
 from collections import deque
 
+from webRTC import WebRTCStream
+from ultralytics import YOLO
+
 import sounddevice as sd
 import numpy as np
 import wave
@@ -86,7 +89,17 @@ class DeviceControl(tk.Frame):
         self.torch_1 = tk.BooleanVar(value=False)
         self.torch_2 = tk.BooleanVar(value=False)
         self.awb_enabled = tk.BooleanVar(value=False)
-        
+
+        ########
+        self.webrtc_client = WebRTCStream("http://192.168.0.236:8889/thunderbolt")
+        self.webrtc_loop = None
+        self.webrtc_connection_future = None
+        self.webrtc_close_future = None
+
+        self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
+        self.toggle_model = False
+
+        self.webrtc_client.start_thread()
         self.layout()
 
 
@@ -223,7 +236,13 @@ class DeviceControl(tk.Frame):
         self.record_button.grid(row=0, column=2, sticky="nsew")
         self.stream_toggle_button.grid(row=1, column=0, sticky="nsew")
         # tk.Button(button_frame, text="Audio filter toggle", width=18).grid(row=1, column=1, sticky="nsew")
-        tk.Button(button_frame, text="Bounding Box Toggle", width=18).grid(row=1, column=2, sticky="nsew")
+
+        def toggle_yolo():
+            self.toggle_model = not self.toggle_model
+            btn_yolo.config(text=f"YOLO Model: {'ON' if self.toggle_model else 'OFF'}")
+
+        btn_yolo = tk.Button(button_frame, text="Bounding Box Toggle", width=18, command=toggle_yolo)
+        btn_yolo.grid(row=1, column=2, sticky="nsew")
         
         # --- Audio Section ---
         bottom_frame = tk.Frame(self)
@@ -422,6 +441,7 @@ class DeviceControl(tk.Frame):
         print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
 
     def stream_toggle(self):
+
         def gray_world_awb(img):
             # Convert to float
             img_float = img.astype(np.float32)
@@ -447,18 +467,40 @@ class DeviceControl(tk.Frame):
             return img_float
 
         def video_loop():
-            ret, frame = globals.capture.read()
-            if ret:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                #frame = cv2.resize(frame, (600, 400))  # fit the label size
-                if self.awb_enabled.get():
-                    frame = gray_world_awb(frame)
-                img = Image.fromarray(frame)
-                imgtk = ImageTk.PhotoImage(image=img)
-                self.video_label.imgtk = imgtk
-                self.video_label.config(image=imgtk)
-                self.video_label.after(10, video_loop)  # schedule next frame
-                self.frame_buffer.append(frame.copy()) # add recording to video buffer
+            # Get the frame from the webrtc thread
+            if (not globals.streaming):
+                print("Video loop: Not streaming, exiting video loop")
+                return
+
+            frame = self.webrtc_client.get_frame()
+            if frame is None:
+                # self.video_label.after(20, video_loop)  # schedule next frame
+                print("No frame received")
+                return
+            
+            if self.toggle_model:
+                results = self.yolo_model(frame, conf=0.5)
+
+
+            # Some basic image processing
+            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #frame = cv2.resize(frame, (600, 400))  # fit the label size
+            if self.awb_enabled.get():
+                frame = gray_world_awb(frame)
+
+            if self.toggle_model:
+                annotated_frame = results[0].plot()
+                frame = annotated_frame
+
+            # Display the frame in the GUI
+            img = Image.fromarray(frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.config(image=imgtk)
+
+            # Schedule the next frame update
+            self.video_label.after(20, video_loop)  # schedule next frame
+            self.frame_buffer.append(frame.copy()) # add recording to video buffer
             # else:
             #     if globals.streaming:
             #         globals.streaming = False
@@ -485,17 +527,36 @@ class DeviceControl(tk.Frame):
         #             messagebox.showerror("Error", "Audio Disconnected")
         #             return
 
-
-
-
         if not globals.streaming:
             # Start video stream if not streaming
-            globals.capture = cv2.VideoCapture(globals.video_url)
+            # globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
             self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
-            video_loop()
-            self.command_controller.start_loop(hz=30)
+            
+            self.webrtc_client.set_stream_link(globals.video_url)
+            
+            self.webrtc_client.start_thread()
+            self.webrtc_client.start_connection()
+
+            if not self.webrtc_client.is_connected():
+                print("WebRTC Connection failed, restaring thread")
+                globals.streaming = False
+                self.stream_toggle_button.config(text="Start Stream")
+                self.webrtc_client.close_thread()
+                self.webrtc_client.start_thread()
+            else:
+                video_loop()
+
+            # self.webrtc_loop = asyncio.new_event_loop()
+            # threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
+            # self.webrtc_connection_future = asyncio.run_coroutine_threadsafe(
+            #     self.webrtc_client.connect_to_server(
+            #         vid_label=self.video_label,
+            #         frame_buffer=self.frame_buffer
+            #     ),
+            #     self.webrtc_loop
+            # )
 
             # Now start audio
             # self.audio_stream_process = subprocess.Popen(
@@ -511,7 +572,27 @@ class DeviceControl(tk.Frame):
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
-            globals.capture.release()
+            # globals.capture.release()
+            # print("Stopping WebRTC connection...")
+            # self.webrtc_close_future = asyncio.run_coroutine_threadsafe(
+            #     self.webrtc_client.close_connection(),
+            #     self.webrtc_loop
+            # )
+            # print("Waiting for WebRTC connection to close...")
+            # self.webrtc_close_future.result()  # wait for closure to complete
+            # print("Waiting for WebRTC connection thread to finish...")
+            # self.webrtc_connection_future.result()  # wait for connection to finish
+
+            # print("WebRTC connection closed.")
+            # if self.webrtc_loop:
+            #     self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
+            #     self.webrtc_loop = None
+            # print("WebRTC event loop stopped.")
+
+            self.webrtc_client.stop_connection()
+            # self.webrtc_client.close_thread()
+            print("WebRTC connection closed.")
+
             self.stop_audio_stream()
             # audio_stream.stop_stream()
             # audio_stream.close()
