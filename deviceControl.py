@@ -453,7 +453,7 @@ class DeviceControl(tk.Frame):
                 return
             
             if self.toggle_model:
-                results = self.yolo_model(frame, conf=0.8)
+                results = self.yolo_model(frame, conf=0.5)
 
 
             # Some basic image processing
@@ -513,7 +513,14 @@ class DeviceControl(tk.Frame):
             self.webrtc_client.start_thread()
             self.webrtc_client.start_connection()
 
-            video_loop()
+            if not self.webrtc_client.is_connected():
+                print("WebRTC Connection failed, restaring thread")
+                globals.streaming = False
+                self.stream_toggle_button.config(text="Start Stream")
+                self.webrtc_client.close_thread()
+                self.webrtc_client.start_thread()
+            else:
+                video_loop()
 
             # self.webrtc_loop = asyncio.new_event_loop()
             # threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()

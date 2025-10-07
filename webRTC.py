@@ -65,7 +65,15 @@ class WebRTCStream:
             print("Video thread: Stop event set")
 
     def is_connected(self):
-        return self.stream_connected.is_set() if self.stream_connected else False
+        try:
+            job = asyncio.run_coroutine_threadsafe(asyncio.wait_for(self.stream_connected.wait(), 20), self.thread_loop)
+            job.result()
+        except TimeoutError:
+            print("Video Thread: Connection failed")
+            return False
+        
+        print("Video thread: Connection Success")
+        return True
 
     async def _connection_loop(self):
         try:
