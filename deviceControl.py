@@ -5,7 +5,6 @@ from functions import *
 from PIL import Image, ImageTk
 import cv2
 import globals
-import vlc
 import threading
 import time
 import datetime
@@ -48,17 +47,10 @@ class DeviceControl(tk.Frame):
 
         # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
-        # self.audio_sample_rate = 44100  
-        # self.audio_channels = 2
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.AUDIO_RATE // self.AUDIO_CHUNK_SIZE)  # 1024-frame chunks
-        
-        self.audio_stream_process = None
 
-        # create a global variable for the audio player loop so that it can be started and stopped
-        self.audio_player_thread = None
-
-        # Start the audio capture in a background thread
-        threading.Thread(target=self._audio_capture_loop, daemon=True).start()
+        # an array to hold the audio recording data
+        self.audio_recording = []
 
         ## Audio Classification Setup
         # Initialize the audio classifier
@@ -214,10 +206,6 @@ class DeviceControl(tk.Frame):
         self.volume_slider.pack(pady=2, fill="x", expand=True)
         self.volume_slider.set(50)  # default volume
 
-        # VLC player instance
-        self.instance = vlc.Instance('--quiet --network-caching=0')
-        self.player = self.instance.media_player_new()
-
 
     def _name_output_file(self, str):
         """
@@ -231,7 +219,8 @@ class DeviceControl(tk.Frame):
         """
         Called when the volume slider is moved, this sets the volume of the audio stream
         """
-        self.player.audio_set_volume(int(value))
+        pass
+        # self.player.audio_set_volume(int(value))
 
 
     ### Video capture rolling buffer 
@@ -280,13 +269,6 @@ class DeviceControl(tk.Frame):
         Background loop to capture video frames and audio while recording.
         Stops automatically after self.max_record_seconds.
         """
-        # Optional: Record audio via VLC stream
-        output_file = self._name_output_file(self.recorded_audio_file)
-        options = f":sout=#file{{dst={output_file}}}"
-        media = self.instance.media_new(globals.audio_url, options)
-        recorder = self.instance.media_player_new()
-        recorder.set_media(media)
-        recorder.play()
 
         while self.recording:
             if self.frame_buffer:
@@ -298,8 +280,8 @@ class DeviceControl(tk.Frame):
                 break
             time.sleep(1 / self.fps)  # sync to frame rate
 
-        recorder.stop()
         self._save_video_recording()
+        self._save_audio_recording()
 
 
     def _save_video_recording(self):
@@ -321,40 +303,37 @@ class DeviceControl(tk.Frame):
         out.release()
 
 
-    ### Audio capture rolling buffer
-    def _audio_capture_loop(self):
+    def _save_audio_recording(self):
         """
-        Continuously capture audio into a rolling memory buffer.
+        This function saves the manual audio recording to the output file.
         """
-        def callback(indata, frames, time, status):
-            if status:
-                print(status)
-            # store a copy of the chunk in the rolling buffer
-            self.audio_buffer.append(indata.copy())
+        if not self.audio_recording:
+            print("No audio recorded!")
+            return
+        
+        output_file = self._name_output_file(self.recorded_audio_file)
 
-        with sd.InputStream(
-            samplerate=self.AUDIO_RATE,
-            channels=self.AUDIO_CHANNELS,
-            blocksize=1024,  # chunk size
-            callback=callback
-        ):
-            while True:
-                sd.sleep(1000)  # keep stream alive
+        wf = wave.open(output_file, 'wb')
+        wf.setnchannels(self.AUDIO_CHANNELS)
+        wf.setsampwidth(2)
+        wf.setframerate(self.AUDIO_RATE)
+        wf.writeframes(b''.join(self.audio_recording))
+        wf.close()
+        self.audio_recording = [] # clear the recording once its saved
 
 
     def save_last_audio(self):
         """
         Save the last N seconds of audio from the buffer to a WAV file.
         """
+
         if not self.audio_buffer:
             print("No audio in buffer!")
             return
 
         # Concatenate all buffered chunks
-        data = np.concatenate(list(self.audio_buffer), axis=0)
-
-        # Convert float32 (-1.0 to 1.0) to 16-bit PCM
-        pcm_data = (data * 32767).astype(np.int16)
+        data = b"".join(self.audio_buffer)
+        pcm_data = np.frombuffer(data, dtype=np.int16)
 
         write_file = self._name_output_file(self.buffer_audio_clip_file)
 
@@ -389,10 +368,20 @@ class DeviceControl(tk.Frame):
 
 
         def _audio_stream_loop(sock):
+            # Empty the 30 second buffer
+            self.audio_buffer.clear()
             while True:
                 data, _ = sock.recvfrom(self.AUDIO_CHUNK_SIZE * 32)  # 2 bytes per sample
+
+                # add audio chunk to 30 second buffer
+                self.audio_buffer.append(data)
+
+                # If recording, add the data to the recording
+                if self.recording:
+                    self.audio_recording.append(data)
+
+                # add audio
                 self.audio_stream.write(data)
-                # add audio chunk to buffer
 
                 if not globals.streaming:
                     return
@@ -412,6 +401,7 @@ class DeviceControl(tk.Frame):
             # Initialize PyAudio
             p = pyaudio.PyAudio()
             self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
+            # print("sample size:", p.get_sample_size(pyaudio.paInt16))
 
             threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start()
 
@@ -529,10 +519,12 @@ class DeviceControl(tk.Frame):
                 # Get audio data from buffer
                 if len(self.audio_buffer) > 0:
                     # Convert deque to numpy array and flatten
-                    audio_chunks = list(self.audio_buffer)
-                    if audio_chunks:
+                    # audio_chunks = list(self.audio_buffer)
+                    raw_audio_data = b"".join(self.audio_buffer)
+                    pcm_data = np.frombuffer(raw_audio_data, dtype=np.int16)
+                    if pcm_data:
                         # Concatenate more recent audio chunks (approximately 10 seconds)
-                        audio_data = np.concatenate(audio_chunks[-10:], axis=0)  # Last 10 chunks for ~10 seconds
+                        audio_data = np.concatenate(pcm_data[-10:], axis=0)  # Last 10 chunks for ~10 seconds
                         
                         # Convert to mono if stereo
                         if len(audio_data.shape) > 1:
@@ -561,6 +553,7 @@ class DeviceControl(tk.Frame):
     
     def _update_detections(self, predictions):
         """Update the creatures detected listbox with predictions and track occurrence counts"""
+        print("updating predictions...")
         if not self.classification_enabled:
             return
             
@@ -619,6 +612,7 @@ class DeviceControl(tk.Frame):
     
     def _update_detections_silence(self):
         """Update listbox when no meaningful audio detected"""
+        print("silence detected...")
         if not self.classification_enabled:
             return
             

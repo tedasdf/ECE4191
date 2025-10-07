@@ -6,13 +6,6 @@ video_url = "https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
 # video_url = "tcp://192.168.21.90:5000"
 # video_url = "tcp://192.168.77.1:5000"
 
-## AUDIO URLS
-# audio_url = "http://10.94.102.23:8080/"#"https://samplelib.com/lib/preview/mp3/sample-9s.mp3"
-# audio_url = "http://192.168.137.2:8080/audio.mp3"
-audio_url = "udp://10.55.127.90:5004"
-#audio_url = "http://10.173.94.23:8080"
-# audio_url = "http://192.168.77.1:8080"
-
 ## GLOBAL VARIABLES FOR CAMERA CONTROLS
 pan_angle = 90  # start at middle
 tilt_angle = 0
