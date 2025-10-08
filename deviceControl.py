@@ -45,6 +45,8 @@ class DeviceControl(tk.Frame):
         self.AUDIO_CHANNELS = 1
         self.AUDIO_RATE = 44100
 
+        self.volume_level = 1.0
+
         # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.AUDIO_RATE // self.AUDIO_CHUNK_SIZE)  # 1024-frame chunks
@@ -82,7 +84,6 @@ class DeviceControl(tk.Frame):
 
 
     def layout(self):
-
         # --- Video + Controls section ---
         main_frame = tk.Frame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -219,9 +220,7 @@ class DeviceControl(tk.Frame):
         """
         Called when the volume slider is moved, this sets the volume of the audio stream
         """
-        pass
-        # self.player.audio_set_volume(int(value))
-
+        self.volume_level = int(value)*4/100 # normalise down to between 0 and 4
 
     ### Video capture rolling buffer 
     def save_last_video(self):
@@ -380,8 +379,11 @@ class DeviceControl(tk.Frame):
                 if self.recording:
                     self.audio_recording.append(data)
 
-                # add audio
-                self.audio_stream.write(data)
+                # Playback with volume adjustment
+                audio_bytes = np.frombuffer(data, dtype=np.int16)
+                adjusted = (audio_bytes * self.volume_level).astype(np.int16)
+                self.audio_stream.write(adjusted.tobytes())
+                # self.audio_stream.write(data)
 
                 if not globals.streaming:
                     return
