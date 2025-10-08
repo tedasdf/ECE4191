@@ -18,6 +18,8 @@ import numpy as np
 import wave
 import requests
 
+from headless_controller import HeadlessController
+
 import socket
 import pyaudio
 

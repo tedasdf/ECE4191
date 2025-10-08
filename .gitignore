@@ -17,3 +17,4 @@ high_accuracy_classifier.pkl
 high_accuracy_classifier.py
 
 *.pyc
+high_accuracy_predictions*
