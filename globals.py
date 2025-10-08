@@ -23,3 +23,6 @@ streaming = False
 capture = None
 audio_stream_process = None
 audio_stream = None
+
+# pi_url = "http://192.168.77.1:7123/stream.mjpg"
+PI_IP = "10.173.94.23"  # Raspberry Pi IP
