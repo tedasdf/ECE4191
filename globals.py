@@ -15,6 +15,8 @@ upKeyState = False
 downKeyState = False
 leftKeyState = False
 rightKeyState = False
+apostropheState = False
+slashState = False
 
 streaming = False
 capture = None

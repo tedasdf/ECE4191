@@ -299,13 +299,20 @@ def parse_command(payload: str):
         return {"type": "all", "action": "stop"}
     return None
 
-def set_angle(angle, SERVO_PIN, pwm):
-    duty = 2 + (angle / 12)
-    GPIO.output(SERVO_PIN, True)
+# def angle_to_pw(angle):
+#     # returns the pulse width associated with the given angle (0° → 500 µs, 180° → 2500 µs)
+#     return 500 + 2000 * (angle / 180.0)
+
+def set_angle(angle, pwm):
+    duty = 2.5 + (angle / 18)
     pwm.ChangeDutyCycle(duty)
-    time.sleep(0.1)
-    GPIO.output(SERVO_PIN, False)
+    time.sleep(0.05)
     pwm.ChangeDutyCycle(0)
+
+
+# def set_angle(angle, SERVO_PIN, pwm):
+#     GPIO.output(SERVO_PIN, True)
+#     pwm.ChangeDutyCycle(1)
 
 def handle_command(ctrl: MotorController, cmd: dict, client: mqtt.Client):
     # print("handler accessed")
@@ -368,13 +375,16 @@ def handle_command(ctrl: MotorController, cmd: dict, client: mqtt.Client):
         print(f"{cmd}")
 
         if action == "y":
-            set_angle(angle, GIMBAL_TILT, pwm_tilt)
-            print(f"y set to {angle}")
-            
+            set_angle(angle+90, pwm_tilt)
+            print(f"y set to {angle} at pin {GIMBAL_TILT}")
             return
         elif action == "x":
-            set_angle(angle, GIMBAL_PAN, pwm_pan)
-            print(f"x set to {angle}")
+            set_angle(angle+30, pwm_pan)
+            print(f"y set to {angle} at pin {GIMBAL_PAN}")
+            return
+        elif action == "c":
+            set_angle(angle+30, pwm_crane)
+            print(f"y set to {angle} at pin {GIMBAL_CRANE}")
             return
 
     # TODO: per-motor control if needed later

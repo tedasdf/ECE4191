@@ -551,6 +551,16 @@ class DeviceControl(tk.Frame):
             # send tilt stop command
             self.sendServoControl("panStop")
 
+        elif e.keysym == "apostrophe" and globals.apostropheState:
+            globals.apostropheState = False
+            stateChange = True
+            # send tilt down command
+        
+        elif e.keysym == "slash" and globals.slashState:
+            globals.slashState = False
+            stateChange = True
+            # send tilt down command
+
         if stateChange:
             print(e.keysym, 'released')
 
@@ -568,7 +578,7 @@ class DeviceControl(tk.Frame):
             # send tilt up command
             self.sendServoControl("tiltUp")
             try:
-                tilt_angle = min(tilt_angle + 10, 90)
+                tilt_angle = max(tilt_angle - 10, 0)
                 print(f"tilt angle {tilt_angle}")
                 self.command_controller.send_gimbal_command("y", tilt_angle)
             except:
@@ -580,7 +590,7 @@ class DeviceControl(tk.Frame):
             # send tilt down command
             self.sendServoControl("tiltDown")
             try:
-                tilt_angle = max(tilt_angle - 10, 0)
+                tilt_angle = min(tilt_angle + 10, 90)
                 print(f"tilt angle {tilt_angle}")
                 self.command_controller.send_gimbal_command("y", tilt_angle)
             except:
@@ -607,6 +617,30 @@ class DeviceControl(tk.Frame):
                 pan_angle = max(pan_angle - 5, 0)
                 print(f"pan angle {pan_angle}")
                 self.command_controller.send_gimbal_command("x", pan_angle)
+            except:
+                pass
+        
+        elif e.keysym == "apostrophe" and not globals.apostropheState:
+            globals.apostropheState = True
+            stateChange = True
+            # send tilt down command
+            # self.sendServoControl("craneUp")
+            try:
+                crane_angle = min(crane_angle + 10, 90)
+                print(f"crane angle {crane_angle}")
+                self.command_controller.send_gimbal_command("c", crane_angle)
+            except:
+                pass
+        
+        elif e.keysym == "slash" and not globals.slashState:
+            globals.slashState = True
+            stateChange = True
+            # send tilt down command
+            # self.sendServoControl("craneDown")
+            try:
+                crane_angle = max(crane_angle - 10, 0)
+                print(f"crane angle {crane_angle}")
+                self.command_controller.send_gimbal_command("c", crane_angle)
             except:
                 pass
         

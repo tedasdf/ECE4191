@@ -39,7 +39,7 @@ class HeadlessController:
         self.clock = pygame.time.Clock()
 
     def send_command(self, command: str):
-        print(command)
+        # print(command)
         try:
             self.server_manager.send_command(command)
         except Exception as e:
