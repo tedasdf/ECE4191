@@ -10,3 +10,5 @@ high_accuracy_classifier.py
 
 R25-Tiality-main/*
 R25-Tiality-main_unmodified/*
+
+*.pyc
