@@ -7,7 +7,8 @@ video_url = "https://www3.cde.ca.gov/download/rod/big_buck_bunny.mp4"
 # video_url = "tcp://192.168.77.1:5000"
 
 ## audio URLS
-audio_url = "Not used anymore"
+# audio_url = "Not used anymore"
+audio_url = "https://samplelib.com/lib/preview/mp3/sample-9s.mp3"
 
 ## GLOBAL VARIABLES FOR CAMERA CONTROLS
 pan_angle = 90  # start at middle
