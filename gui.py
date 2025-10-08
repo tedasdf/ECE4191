@@ -100,4 +100,6 @@ if __name__ == "__main__":
     # controller = HeadlessController(mqtt_broker_host_ip=globals.controller_IP.split(":")[0], mqtt_port=int(globals.controller_IP.split(":")[1]))
     # controller = None
     app = WildlifeBotApp()
+    # add.state("zoomed")  # fullscreen for Windows
+    #app.attributes("-fullscreen", True)  # fullscreen for Linux
     app.mainloop()

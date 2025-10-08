@@ -10,3 +10,8 @@ high_accuracy_classifier.py
 
 R25-Tiality-main/*
 R25-Tiality-main_unmodified/*
+venv/
+ECE4191 - Potential Audio Targets/
+4191_audio2.0/
+high_accuracy_classifier.pkl
+high_accuracy_classifier.py

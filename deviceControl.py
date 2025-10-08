@@ -5,7 +5,6 @@ from functions import *
 from PIL import Image, ImageTk
 import cv2
 import globals
-import vlc
 import threading
 import time
 import datetime
@@ -18,7 +17,12 @@ import sounddevice as sd
 import numpy as np
 import wave
 import requests
-from headless_controller import HeadlessController
+
+import socket
+import pyaudio
+
+# Import the high accuracy audio classifier
+from high_accuracy_classifier import HighAccuracyAnimalClassifier
 
 # pan_speed_percent = 0  # start at middle
 pan_angle = 45
@@ -46,33 +50,34 @@ class DeviceControl(tk.Frame):
         self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)    # where frames for the past clip are stored
 
         ## Audio Stream stuff
+        # audio stream settings
+        self.AUDIO_IP = "0.0.0.0"
+        self.AUDIO_PORT = 5004
+        self.AUDIO_CHUNK_SIZE = 1024
+        self.AUDIO_FORMAT = pyaudio.paInt16
+        self.AUDIO_CHANNELS = 1
+        self.AUDIO_RATE = 44100
+
+        self.volume_level = 1.0
+
         # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
-        self.audio_sample_rate = 44100  
-        self.audio_channels = 2
-        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
+        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.AUDIO_RATE // self.AUDIO_CHUNK_SIZE)  # 1024-frame chunks
+
+        # an array to hold the audio recording data
+        self.audio_recording = []
+
+        ## Audio Classification Setup
+        # Initialize the audio classifier
+        self.audio_classifier = None
+        self.classification_enabled = False
+        self.classification_thread = None
+        self.detected_creatures = []
+        self.creature_counts = {}  # Track occurrence counts for top 1 predictions
+        self.recent_predictions = []  # Store recent top 3 predictions
         
-        self.audio_stream_process = None
-
-        # temp code for testing lag
-        # click_time = [0]
-
-        # def on_click():
-        #     now = time.time()
-        #     latency_ms = (now - click_time[0]) * 1000
-        #     print(f"GUI response latency: {latency_ms:.2f} ms")
-
-        # def register_click(event):
-        #     click_time[0] = time.time()  # record press timestamp
-        #     self.after_idle(on_click)    # schedule callback ASAP
-
-        # btn = tk.Button(self, text="Click Me")
-        # btn.pack(padx=20, pady=20)
-        # btn.bind("<Button-1>", register_click)
-
-        
-        # Start the audio capture in a background thread
-        threading.Thread(target=self._audio_capture_loop, daemon=True).start()
+        # Initialize audio classifier in a separate thread to avoid blocking UI
+        threading.Thread(target=self._init_audio_classifier, daemon=True).start()
 
         # Cooldown tracker
         self.last_key_time = 0
@@ -104,7 +109,6 @@ class DeviceControl(tk.Frame):
 
 
     def layout(self):
-
         # --- Video + Controls section ---
         main_frame = tk.Frame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -136,17 +140,44 @@ class DeviceControl(tk.Frame):
         detect_scrollbar = tk.Scrollbar(detect_frame)
         detect_scrollbar.pack(side="right", fill="y")
 
-        detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
-        detect_listbox.pack(side="left", fill="both", expand=True)
+        self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
+        self.detect_listbox.pack(side="left", fill="both", expand=True)
+        self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
+        self.detect_listbox.pack(side="left", fill="both", expand=True)
 
-        detect_scrollbar.config(command=detect_listbox.yview)
+        detect_scrollbar.config(command=self.detect_listbox.yview)
+        detect_scrollbar.config(command=self.detect_listbox.yview)
 
-        creatures = [
-            "Platypus", "Lizard", "Crocodile", "Dove",
-            "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove"
-        ]
-        for i in creatures:
-            detect_listbox.insert("end", f"{i}")
+        # Add initial message while audio classifier loads
+        self.detect_listbox.insert("end", "Audio classifier loading...")
+        self.detect_listbox.insert("end", "Please wait...")
+        
+        # Audio classification toggle button
+        audio_controls_frame = tk.Frame(detect_frame)
+        audio_controls_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+        
+        self.audio_classification_button = tk.Button(
+            audio_controls_frame, 
+            text="Start Audio Detection", 
+            command=self.toggle_audio_classification,
+            state=tk.DISABLED  # Disabled until classifier loads
+        )
+        self.audio_classification_button.pack(side="left", padx=5)
+        # Add initial message while audio classifier loads
+        self.detect_listbox.insert("end", "Audio classifier loading...")
+        self.detect_listbox.insert("end", "Please wait...")
+        
+        # Audio classification toggle button
+        audio_controls_frame = tk.Frame(detect_frame)
+        audio_controls_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+        
+        self.audio_classification_button = tk.Button(
+            audio_controls_frame, 
+            text="Start Audio Detection", 
+            command=self.toggle_audio_classification,
+            state=tk.DISABLED  # Disabled until classifier loads
+        )
+        self.audio_classification_button.pack(side="left", padx=5)
 
         # Camera Controls
         cam_frame = tk.LabelFrame(right_frame, text="Camera Controls")
@@ -269,10 +300,6 @@ class DeviceControl(tk.Frame):
         self.volume_slider.pack(pady=2, fill="x", expand=True)
         self.volume_slider.set(50)  # default volume
 
-        # VLC player instance
-        self.instance = vlc.Instance("--quiet --network-caching=0")
-        self.player = self.instance.media_player_new()
-
 
     def _name_output_file(self, str):
         """
@@ -286,26 +313,7 @@ class DeviceControl(tk.Frame):
         """
         Called when the volume slider is moved, this sets the volume of the audio stream
         """
-        self.player.audio_set_volume(int(value))
-
-
-    ### audio stream control functions
-    def play_audio_stream(self):
-        """
-        Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
-        """
-        print("audio stream started")
-        media = self.instance.media_new(globals.audio_url)
-        self.player.set_media(media)
-        self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
-        self.player.play()
-
-
-    def stop_audio_stream(self):
-        """
-        Stops the audio stream that is playing
-        """
-        self.player.stop()
+        self.volume_level = int(value)*4/100 # normalise down to between 0 and 4
 
     ### Video capture rolling buffer 
     def save_last_video(self):
@@ -326,7 +334,7 @@ class DeviceControl(tk.Frame):
     ### Live Recording Functions
     def toggle_recording(self):
         """
-        Toggles the recording function. This is to be called by the recording button whne the user presses it
+        Toggles the recording function. This is to be called by the recording button when the user presses it
         """
         if not self.recording:
             # Start recording
@@ -353,13 +361,6 @@ class DeviceControl(tk.Frame):
         Background loop to capture video frames and audio while recording.
         Stops automatically after self.max_record_seconds.
         """
-        # Optional: Record audio via VLC stream
-        output_file = self._name_output_file(self.recorded_audio_file)
-        options = f":sout=#file{{dst={output_file}}}"
-        media = self.instance.media_new(globals.audio_url, options)
-        recorder = self.instance.media_player_new()
-        recorder.set_media(media)
-        recorder.play()
 
         while self.recording:
             if self.frame_buffer:
@@ -371,8 +372,8 @@ class DeviceControl(tk.Frame):
                 break
             time.sleep(1 / self.fps)  # sync to frame rate
 
-        recorder.stop()
         self._save_video_recording()
+        self._save_audio_recording()
 
 
     def _save_video_recording(self):
@@ -394,48 +395,45 @@ class DeviceControl(tk.Frame):
         out.release()
 
 
-    ### Audio capture rolling buffer
-    def _audio_capture_loop(self):
+    def _save_audio_recording(self):
         """
-        Continuously capture audio into a rolling memory buffer.
+        This function saves the manual audio recording to the output file.
         """
-        def callback(indata, frames, time, status):
-            if status:
-                print(status)
-            # store a copy of the chunk in the rolling buffer
-            self.audio_buffer.append(indata.copy())
+        if not self.audio_recording:
+            print("No audio recorded!")
+            return
+        
+        output_file = self._name_output_file(self.recorded_audio_file)
 
-        with sd.InputStream(
-            samplerate=self.audio_sample_rate,
-            channels=self.audio_channels,
-            blocksize=1024,  # chunk size
-            callback=callback
-        ):
-            while True:
-                sd.sleep(1000)  # keep stream alive
+        wf = wave.open(output_file, 'wb')
+        wf.setnchannels(self.AUDIO_CHANNELS)
+        wf.setsampwidth(2)
+        wf.setframerate(self.AUDIO_RATE)
+        wf.writeframes(b''.join(self.audio_recording))
+        wf.close()
+        self.audio_recording = [] # clear the recording once its saved
 
 
     def save_last_audio(self):
         """
         Save the last N seconds of audio from the buffer to a WAV file.
         """
+
         if not self.audio_buffer:
             print("No audio in buffer!")
             return
 
         # Concatenate all buffered chunks
-        data = np.concatenate(list(self.audio_buffer), axis=0)
-
-        # Convert float32 (-1.0 to 1.0) to 16-bit PCM
-        pcm_data = (data * 32767).astype(np.int16)
+        data = b"".join(self.audio_buffer)
+        pcm_data = np.frombuffer(data, dtype=np.int16)
 
         write_file = self._name_output_file(self.buffer_audio_clip_file)
 
         # Write to WAV file
         with wave.open(write_file, "wb") as wf:
-            wf.setnchannels(self.audio_channels)
+            wf.setnchannels(self.AUDIO_CHANNELS)
             wf.setsampwidth(2)  # 16-bit
-            wf.setframerate(self.audio_sample_rate)
+            wf.setframerate(self.AUDIO_RATE)
             wf.writeframes(pcm_data.tobytes())
 
         print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
@@ -512,26 +510,34 @@ class DeviceControl(tk.Frame):
             #         messagebox.showerror("Error", "Video Disconnected")
             #         return
 
-        # def audio_loop():
-        #     audio_data = self.audio_stream_process.stdout.read(4096)
+
+        def _audio_stream_loop(sock):
+            # Empty the 30 second buffer
+            self.audio_buffer.clear()
+            while True:
+                data, _ = sock.recvfrom(self.AUDIO_CHUNK_SIZE * 32)  # 2 bytes per sample
+
+                # add audio chunk to 30 second buffer
+                self.audio_buffer.append(data)
+
+                # If recording, add the data to the recording
+                if self.recording:
+                    self.audio_recording.append(data)
+
+                # Playback with volume adjustment
+                audio_bytes = np.frombuffer(data, dtype=np.int16)
+                adjusted = (audio_bytes * self.volume_level).astype(np.int16)
+                self.audio_stream.write(adjusted.tobytes())
+                # self.audio_stream.write(data)
+
+                if not globals.streaming:
+                    return
             
-        #     if audio_data:
-        #         audio_stream.write(audio_data)
-        #         self.after(15, audio_loop)
-        #     else:
-        #         if globals.streaming:
-        #             globals.streaming = False
-        #             self.stream_toggle_button.config(text="Start Stream")
-        #             self.video_label.config(image=self.stream_standby_photo)
-        #             globals.capture.release()
-        #             messagebox.showerror("Error", "Audio Disconnected")
-        #             return
 
         if not globals.streaming:
             # Start video stream if not streaming
             # globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
-            self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
             
             self.webrtc_client.set_stream_link(globals.video_url)
@@ -548,26 +554,16 @@ class DeviceControl(tk.Frame):
             else:
                 video_loop()
 
-            # self.webrtc_loop = asyncio.new_event_loop()
-            # threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
-            # self.webrtc_connection_future = asyncio.run_coroutine_threadsafe(
-            #     self.webrtc_client.connect_to_server(
-            #         vid_label=self.video_label,
-            #         frame_buffer=self.frame_buffer
-            #     ),
-            #     self.webrtc_loop
-            # )
+            # create a socket and bind it to the audio stream ip and port
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.bind((self.AUDIO_IP, self.AUDIO_PORT))
+            
+            # Initialize PyAudio
+            p = pyaudio.PyAudio()
+            self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
+            # print("sample size:", p.get_sample_size(pyaudio.paInt16))
 
-            # Now start audio
-            # self.audio_stream_process = subprocess.Popen(
-            #     ["ffmpeg", "-i", globals.audio_url, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "-"],
-            #     stdout=subprocess.PIPE,
-            #     stderr=subprocess.DEVNULL            
-            # )
-
-            # p = pyaudio.PyAudio()
-            # audio_stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, output=True)
-            # threading.Thread(target=audio_loop, daemon=True).start()
+            threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start()
 
         else:
             # Stop video and audio stream if already streaming
@@ -739,3 +735,198 @@ class DeviceControl(tk.Frame):
 
 
     
+
+    ## Audio Classification Methods ##
+    
+    def _init_audio_classifier(self):
+        """Initialize the audio classifier in a background thread"""
+        try:
+            print("Initializing audio classifier...")
+            audio_dir = "ECE4191 - Potential Audio Targets"
+            
+            if not os.path.exists(audio_dir):
+                print(f"Warning: Audio directory '{audio_dir}' not found!")
+                self.after(0, self._update_classifier_status, "Audio files not found")
+                return
+            
+            # Initialize the high accuracy classifier
+            # Ensure logs directory exists and use it for both model and GUI logging
+            self.logs_dir = os.path.join(os.getcwd(), "logs", "audio")
+            os.makedirs(self.logs_dir, exist_ok=True)
+            # GUI-side log file for top-1 occurrences
+            self.gui_log_path = os.path.join(self.logs_dir, "gui_audio_top1.log")
+            if not os.path.exists(self.gui_log_path):
+                try:
+                    with open(self.gui_log_path, "a") as f:
+                        f.write(f"# GUI Audio Top-1 Log - started {datetime.datetime.now().isoformat()}\n")
+                except Exception:
+                    pass
+
+            self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir)
+            self.after(0, self._update_classifier_status, "High-accuracy classifier ready")
+            print("High-accuracy audio classifier initialized successfully!")
+            
+        except Exception as e:
+            print(f"Error initializing audio classifier: {e}")
+            self.after(0, self._update_classifier_status, f"Error: {str(e)}")
+    
+    def _update_classifier_status(self, message):
+        """Update the UI with classifier status - called from main thread"""
+        self.detect_listbox.delete(0, tk.END)
+        self.detect_listbox.insert("end", message)
+        
+        if self.audio_classifier is not None:
+            self.audio_classification_button.config(state=tk.NORMAL)
+    
+    def toggle_audio_classification(self):
+        """Toggle audio classification on/off"""
+        if self.audio_classifier is None:
+            self.detect_listbox.delete(0, tk.END)
+            self.detect_listbox.insert("end", "Audio classifier not ready")
+            return
+        
+        if not self.classification_enabled:
+            # Start classification
+            self.classification_enabled = True
+            self.audio_classification_button.config(text="Stop Audio Detection", bg="red")
+            
+            # Reset occurrence counts when starting new session
+            self.creature_counts = {}
+            self.recent_predictions = []
+            
+            # Start classification thread
+            self.classification_thread = threading.Thread(target=self._classification_loop, daemon=True)
+            self.classification_thread.start()
+            
+            self.detect_listbox.delete(0, tk.END)
+            self.detect_listbox.insert("end", "Audio detection started (10s intervals)...")
+            print("High-accuracy audio classification started (10-second intervals)")
+        else:
+            # Stop classification
+            self.classification_enabled = False
+            self.audio_classification_button.config(text="Start Audio Detection", bg="SystemButtonFace")
+            
+            self.detect_listbox.delete(0, tk.END)
+            self.detect_listbox.insert("end", "Audio detection stopped")
+            print("Audio classification stopped")
+    
+    def _classification_loop(self):
+        """Background thread for continuous audio classification"""
+        while self.classification_enabled and self.audio_classifier is not None:
+            try:
+                # Get audio data from buffer
+                if len(self.audio_buffer) > 0:
+                    # Convert deque to numpy array and flatten
+                    # audio_chunks = list(self.audio_buffer)
+                    raw_audio_data = b"".join(self.audio_buffer)
+                    pcm_data = np.frombuffer(raw_audio_data, dtype=np.int16)
+                    if pcm_data:
+                        # Concatenate more recent audio chunks (approximately 10 seconds)
+                        audio_data = np.concatenate(pcm_data[-10:], axis=0)  # Last 10 chunks for ~10 seconds
+                        
+                        # Convert to mono if stereo
+                        if len(audio_data.shape) > 1:
+                            audio_data = np.mean(audio_data, axis=1)
+                        else:
+                            audio_data = audio_data.flatten()
+                        
+                        # Check if audio has meaningful content
+                        if np.max(np.abs(audio_data)) > 0.01:  # Threshold for silence
+                            # Get predictions
+                            predictions = self.audio_classifier.predict_animal(audio_data)
+                            
+                            # Update UI from main thread
+                            self.after(0, self._update_detections, predictions)
+                        else:
+                            # No meaningful audio detected
+                            self.after(0, self._update_detections_silence)
+                
+                # Wait before next classification (10 seconds to match high accuracy model)
+                time.sleep(10.0)  # 10-second intervals for high accuracy
+                
+            except Exception as e:
+                print(f"Error in classification loop: {e}")
+                self.after(0, self._update_detections_error, str(e))
+                time.sleep(3.0)
+    
+    def _update_detections(self, predictions):
+        """Update the creatures detected listbox with predictions and track occurrence counts"""
+        print("updating predictions...")
+        if not self.classification_enabled:
+            return
+            
+        # Track top 1 prediction occurrence
+        if predictions and len(predictions) > 0:
+            top_animal = predictions[0][0]
+            if top_animal in self.creature_counts:
+                self.creature_counts[top_animal] += 1
+            else:
+                self.creature_counts[top_animal] = 1
+        
+        # Store recent predictions for logging
+        self.recent_predictions.append(predictions)
+        if len(self.recent_predictions) > 20:  # Keep last 20 predictions
+            self.recent_predictions.pop(0)
+            
+        # Clear current list
+        self.detect_listbox.delete(0, tk.END)
+        
+        # Add timestamp
+        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        self.detect_listbox.insert("end", f"🕒 {timestamp} - Audio Analysis (10s):")
+        self.detect_listbox.insert("end", "=" * 45)
+        
+        # Add top 3 real-time predictions
+        for i, (animal, confidence) in enumerate(predictions[:3], 1):
+            confidence_percent = confidence * 100
+            emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
+            display_text = f"{emoji} #{i}: {animal:<12} ({confidence_percent:5.1f}%)"
+            self.detect_listbox.insert("end", display_text)
+        
+        self.detect_listbox.insert("end", "=" * 45)
+        
+        # Add occurrence summary for top detections
+        if self.creature_counts:
+            self.detect_listbox.insert("end", "📊 Detection Summary:")
+            # Sort by occurrence count
+            sorted_counts = sorted(self.creature_counts.items(), key=lambda x: x[1], reverse=True)
+            for animal, count in sorted_counts[:5]:  # Show top 5
+                self.detect_listbox.insert("end", f"   {animal}: {count} detections")
+        
+        # Auto-scroll to bottom
+        self.detect_listbox.see(tk.END)
+        
+        # Log the prediction
+        top_prediction = predictions[0] if predictions else ("Unknown", 0.0)
+        log_msg = f"TOP: {top_prediction[0]} ({top_prediction[1]*100:.2f}%) [Count: {self.creature_counts.get(top_prediction[0], 0)}] | ALL: {', '.join([f'{name}({conf*100:.1f}%)' for name, conf in predictions[:3]])}"
+        print(f"Audio Detection Log: {log_msg}")
+        # Append to GUI-side log file
+        try:
+            if hasattr(self, 'gui_log_path') and self.gui_log_path:
+                with open(self.gui_log_path, "a") as f:
+                    f.write(f"{datetime.datetime.now().isoformat()} - {log_msg}\n")
+        except Exception:
+            pass
+    
+    def _update_detections_silence(self):
+        """Update listbox when no meaningful audio detected"""
+        print("silence detected...")
+        if not self.classification_enabled:
+            return
+            
+        #timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        #self.detect_listbox.delete(0, tk.END)
+        #self.detect_listbox.insert("end", f"🕒 {timestamp} (10s interval)")
+        #self.detect_listbox.insert("end", "🔇 Low audio level...")
+        #self.detect_listbox.insert("end", "Listening for animal sounds...")
+    
+    def _update_detections_error(self, error_msg):
+        """Update listbox when classification error occurs"""
+        if not self.classification_enabled:
+            return
+            
+        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        self.detect_listbox.delete(0, tk.END)
+        self.detect_listbox.insert("end", f"🕒 {timestamp} (10s interval)")
+        self.detect_listbox.insert("end", f"❌ Error: {error_msg}")
+        self.detect_listbox.insert("end", "Retrying in 10 seconds...")
