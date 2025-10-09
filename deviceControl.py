@@ -144,8 +144,8 @@ class DeviceControl(tk.Frame):
 
         self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
         self.detect_listbox.pack(side="left", fill="both", expand=True)
-        self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
-        self.detect_listbox.pack(side="left", fill="both", expand=True)
+        # self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
+        # self.detect_listbox.pack(side="left", fill="both", expand=True)
 
         detect_scrollbar.config(command=self.detect_listbox.yview)
         detect_scrollbar.config(command=self.detect_listbox.yview)
@@ -191,11 +191,11 @@ class DeviceControl(tk.Frame):
         # tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
         # ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
 
-        tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
-        ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
+        # tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
+        # ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
 
-        tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
-        ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1, sticky="ew")
+        # tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
+        # ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1, sticky="ew")
 
         def torch_1_control():
             try:
