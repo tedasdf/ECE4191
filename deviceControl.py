@@ -144,8 +144,6 @@ class DeviceControl(tk.Frame):
 
         self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
         self.detect_listbox.pack(side="left", fill="both", expand=True)
-        self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
-        self.detect_listbox.pack(side="left", fill="both", expand=True)
 
         detect_scrollbar.config(command=self.detect_listbox.yview)
         detect_scrollbar.config(command=self.detect_listbox.yview)
@@ -191,11 +189,11 @@ class DeviceControl(tk.Frame):
         # tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
         # ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
 
-        tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
-        ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
+        # tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
+        # ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
 
-        tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
-        ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1, sticky="ew")
+        # tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
+        # ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1, sticky="ew")
 
         def torch_1_control():
             try:
@@ -315,7 +313,7 @@ class DeviceControl(tk.Frame):
         """
         Called when the volume slider is moved, this sets the volume of the audio stream
         """
-        self.volume_level = int(value)*4/100 # normalise down to between 0 and 4
+        self.volume_level = int(value)*2/100 # normalise down to between 0 and 4
 
     ### Video capture rolling buffer 
     def save_last_video(self):
@@ -478,15 +476,15 @@ class DeviceControl(tk.Frame):
                 print("No frame received")
                 return
             
-            if self.toggle_model:
-                results = self.yolo_model(frame, conf=0.5)
+            if self.awb_enabled.get():
+                frame = gray_world_awb(frame)
 
 
             # Some basic image processing
             # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             #frame = cv2.resize(frame, (600, 400))  # fit the label size
-            if self.awb_enabled.get():
-                frame = gray_world_awb(frame)
+            if self.toggle_model:
+                results = self.yolo_model(frame, conf=0.5)
 
             if self.toggle_model:
                 annotated_frame = results[0].plot()
@@ -549,7 +547,7 @@ class DeviceControl(tk.Frame):
 
             if not self.webrtc_client.is_connected():
                 print("WebRTC Connection failed, restaring thread")
-                globals.streaming = False
+                # globals.streaming = False
                 self.stream_toggle_button.config(text="Start Stream")
                 self.webrtc_client.close_thread()
                 self.webrtc_client.start_thread()
@@ -591,7 +589,7 @@ class DeviceControl(tk.Frame):
             # self.webrtc_client.close_thread()
             print("WebRTC connection closed.")
 
-            self.stop_audio_stream()
+            # self.stop_audio_stream()
             # audio_stream.stop_stream()
             # audio_stream.close()
             # p.termiate()
@@ -822,9 +820,10 @@ class DeviceControl(tk.Frame):
                     # audio_chunks = list(self.audio_buffer)
                     raw_audio_data = b"".join(self.audio_buffer)
                     pcm_data = np.frombuffer(raw_audio_data, dtype=np.int16)
-                    if pcm_data:
+                    if pcm_data.any():
                         # Concatenate more recent audio chunks (approximately 10 seconds)
-                        audio_data = np.concatenate(pcm_data[-10:], axis=0)  # Last 10 chunks for ~10 seconds
+                        # audio_data = np.concatenate(pcm_data[-10:], axis=0)  # Last 10 chunks for ~10 seconds
+                        audio_data = pcm_data[-10:]
                         
                         # Convert to mono if stereo
                         if len(audio_data.shape) > 1:
