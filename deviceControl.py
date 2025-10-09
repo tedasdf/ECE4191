@@ -144,8 +144,6 @@ class DeviceControl(tk.Frame):
 
         self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
         self.detect_listbox.pack(side="left", fill="both", expand=True)
-        # self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
-        # self.detect_listbox.pack(side="left", fill="both", expand=True)
 
         detect_scrollbar.config(command=self.detect_listbox.yview)
         detect_scrollbar.config(command=self.detect_listbox.yview)
