@@ -1,0 +1,223 @@
+import pygame
+import logging
+import json
+import threading
+import os
+import sys
+import platform
+from tiality_server import TialityServerManager
+
+# from tiality_server import TialityServerManager  # uncomment for real use
+logger = logging.getLogger(__name__)
+
+
+class DummyServerManager:
+    """Stub for local testing without Tiality."""
+    def __init__(self, *a, **kw): print("⚙️ DummyServerManager active")
+    def start_servers(self): print("🟢 Servers started")
+    def send_command(self, cmd): print("📤 Command:", cmd)
+    def close_servers(self): print("🔴 Servers closed")
+
+
+class HeadlessController:
+    def __init__(self, mqtt_broker_host_ip="localhost", mqtt_port=1883):
+        """Initialize joystick and comms."""
+        system = platform.system()
+        self.ready_to_publish = False
+
+        # --- ✅ Cross-platform SDL setup ---
+        if system == "Windows":
+            # Windows needs a real (but hidden) window for joystick input
+            os.environ.pop("SDL_VIDEODRIVER", None)
+            pygame.init()
+            pygame.display.init()
+            pygame.display.set_mode((1, 1))
+            import ctypes
+            hwnd = pygame.display.get_wm_info()["window"]
+            ctypes.windll.user32.ShowWindow(hwnd, 0)  # hide window
+            print("🎮 Windows mode: hidden SDL window created")
+        else:
+            # Linux / Pi can run truly headless
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+            pygame.init()
+            pygame.display.init()
+            pygame.display.set_mode((1, 1))
+            print("🐧 Linux/Pi mode: dummy SDL driver active")
+
+        pygame.joystick.init()
+        self.clock = pygame.time.Clock()
+        self.running = True
+
+        # --- Joystick detection ---
+        if pygame.joystick.get_count() > 0:
+            self.joystick = pygame.joystick.Joystick(0)
+            self.joystick.init()
+            print(f"✅ Joystick initialized: {self.joystick.get_name()}")
+        else:
+            print("⚠️ No joystick detected!")
+            self.joystick = None
+
+        # --- Replace with real server manager if available ---
+        try:
+            self.server_manager = TialityServerManager(
+                grpc_port=50051,
+                mqtt_port=mqtt_port,
+                mqtt_broker_host_ip=mqtt_broker_host_ip,
+                decode_video_func=None,
+                num_decode_video_workers=0
+            )
+        except NameError:
+            # fallback for local testing
+            self.server_manager = DummyServerManager()
+
+        self.server_manager.start_servers()
+
+    # ------------------------------------------------------------------
+    def send_command(self, command: str):
+        try:
+            self.server_manager.send_command(command)
+        except Exception as e:
+            logger.error(f"Command send failed: {e}")
+
+    def send_gimbal_command(self, action: str, degrees: float = 10.0) -> None:
+        """
+        Send gimbal command to Pi via MQTT - immediate response
+        
+        Args:
+            action: The gimbal action (x_left, x_right, y_up, y_down, c_up, c_down, center)
+            degrees: How many degrees to move (default 10.0)
+        """
+        # print("send gimbal command called")
+        cmd = {
+            "type": "gimbal",
+            "action": action,
+            "degrees": degrees
+        }
+        
+        try:
+            command_json = json.dumps(cmd).encode()
+            logger.info(f"Sending gimbal command: {cmd}")
+            self.send_command(command_json)
+            logger.info(f"Gimbal command queued successfully: {cmd}")
+        except Exception as e:
+            logger.error(f"Failed to send gimbal command: {e}")
+            raise
+
+    # ------------------------------------------------------------------
+    # def _publish_robot_motion(self):
+    #     # print("function accessed")
+    #     vx = vy = w = 0.0
+
+    #     if self.joystick and self.joystick.get_init():
+    #         try:
+    #             pygame.event.pump()
+    #             x_axis = self.joystick.get_axis(0)
+    #             y_axis = self.joystick.get_axis(1)
+    #             rot_axis = self.joystick.get_axis(2)
+    #             print(f"[AXIS] {x_axis:.3f}, {y_axis:.3f}, {rot_axis:.3f}")
+    #         except Exception:
+    #             x_axis = y_axis = rot_axis = 0.0
+
+    #         vx = x_axis * 40.0
+    #         vy = -y_axis * 40.0
+    #         w = rot_axis * 40.0
+
+    #     # Deadzone
+    #     if abs(vx) < 5: vx = 0.0
+    #     if abs(vy) < 5: vy = 0.0
+    #     if abs(w) < 5: w = 0.0
+
+    #     if vx or vy or w:
+    #         cmd = {"type": "vector", "action": "set", "vx": int(vx), "vy": int(vy), "w": int(w)}
+    #     else:
+    #         cmd = {"type": "all", "action": "stop"}
+    #     self.send_command(json.dumps(cmd).encode())
+
+
+    def _publish_robot_motion(self):
+        vx = vy = w = 0.0
+
+        if platform.system() == "Windows":
+            from inputs import get_gamepad
+            try:
+                events = get_gamepad()
+                x_axis = y_axis = rot_axis = 0.0
+                x_axis = events.state / 32768.0
+                y_axis = events.state / 32768.0
+                rot_axis = events.state / 32768.0
+                # print(f"[INPUTS] {x_axis:.3f}, {y_axis:.3f}, {rot_axis:.3f}")
+            except Exception:
+                x_axis = y_axis = rot_axis = 0.0
+        else:
+            pygame.event.pump()
+            x_axis = self.joystick.get_axis(0)
+            y_axis = self.joystick.get_axis(1)
+            rot_axis = self.joystick.get_axis(2)
+            print(f"[AXIS] {x_axis:.3f}, {y_axis:.3f}, {rot_axis:.3f}")
+
+        vx = x_axis * 40.0
+        vy = -y_axis * 40.0
+        w = rot_axis * 40.0
+
+        if abs(vx) < 5: vx = 0.0
+        if abs(vy) < 5: vy = 0.0
+        if abs(w) < 5: w = 0.0
+
+        if vx == 0.0 and vy == 0.0 and w == 0.0:
+            cmd = {"type": "all", "action": "stop"}
+            self.send_command(json.dumps(cmd).encode())
+            #print(cmd)
+        else:
+            cmd = {"type": "vector", "action": "set", "vx": int(vx), "vy": int(vy), "w": int(w)}
+            self.send_command(json.dumps(cmd).encode())
+            print(cmd)
+
+
+    # ------------------------------------------------------------------
+    def update(self, hz):
+        """Run once per frame."""
+        if not self.running:
+            return
+        self._publish_robot_motion()
+        # for event in pygame.event.get():
+        #     print(f"[EVENT] {event}")
+        self.clock.tick(hz)
+        self.ready_to_publish = True
+
+    # ------------------------------------------------------------------
+    def cleanup(self):
+        self.server_manager.close_servers()
+        pygame.quit()
+        print("👋 Controller shut down cleanly")
+
+    # ------------------------------------------------------------------
+    def start_loop(self, hz):
+        """Run in background thread at ~hz."""
+        self.running = True
+
+        def loop():
+            while self.running:
+                self.update(hz)
+                # self.clock.tick(hz)
+
+        t = threading.Thread(target=loop, daemon=True)
+        t.start()
+        self._thread = t
+
+    def stop_loop(self):
+        self.running = False
+        if hasattr(self, "_thread"):
+            self._thread.join(timeout=1)
+
+
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    hc = HeadlessController()
+    hc.start_loop(30)
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        hc.stop_loop()
+        hc.cleanup()

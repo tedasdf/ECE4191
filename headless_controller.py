@@ -1,157 +1,117 @@
-import pygame
-import logging
-import json
 import threading
-import os
-import sys
-import platform
-from tiality_server import TialityServerManager
+import json
+import logging
+from inputs import get_gamepad
 
-# from tiality_server import TialityServerManager  # uncomment for real use
 logger = logging.getLogger(__name__)
-
-
-class DummyServerManager:
-    """Stub for local testing without Tiality."""
-    def __init__(self, *a, **kw): print("⚙️ DummyServerManager active")
-    def start_servers(self): print("🟢 Servers started")
-    def send_command(self, cmd): print("📤 Command:", cmd)
-    def close_servers(self): print("🔴 Servers closed")
-
 
 class HeadlessController:
     def __init__(self, mqtt_broker_host_ip="localhost", mqtt_port=1883):
-        """Initialize joystick and comms."""
-        system = platform.system()
-
-        # --- ✅ Cross-platform SDL setup ---
-        if system == "Windows":
-            # Windows needs a real (but hidden) window for joystick input
-            os.environ.pop("SDL_VIDEODRIVER", None)
-            pygame.init()
-            pygame.display.init()
-            pygame.display.set_mode((1, 1))
-            import ctypes
-            hwnd = pygame.display.get_wm_info()["window"]
-            ctypes.windll.user32.ShowWindow(hwnd, 0)  # hide window
-            print("🎮 Windows mode: hidden SDL window created")
-        else:
-            # Linux / Pi can run truly headless
-            os.environ["SDL_VIDEODRIVER"] = "dummy"
-            pygame.init()
-            pygame.display.init()
-            pygame.display.set_mode((1, 1))
-            print("🐧 Linux/Pi mode: dummy SDL driver active")
-
-        pygame.joystick.init()
-        self.clock = pygame.time.Clock()
-        self.running = True
-
-        # --- Joystick detection ---
-        if pygame.joystick.get_count() > 0:
-            self.joystick = pygame.joystick.Joystick(0)
-            self.joystick.init()
-            print(f"✅ Joystick initialized: {self.joystick.get_name()}")
-        else:
-            print("⚠️ No joystick detected!")
-            self.joystick = None
-
-        # --- Replace with real server manager if available ---
-        try:
-            self.server_manager = TialityServerManager(
-                grpc_port=50051,
-                mqtt_port=mqtt_port,
-                mqtt_broker_host_ip=mqtt_broker_host_ip,
-                decode_video_func=None,
-                num_decode_video_workers=0
-            )
-        except NameError:
-            # fallback for local testing
-            self.server_manager = DummyServerManager()
-
+        # Optional: replace this with your real server manager
+        from tiality_server import TialityServerManager
+        self.server_manager = TialityServerManager(
+            grpc_port=50051,
+            mqtt_port=mqtt_port,
+            mqtt_broker_host_ip=mqtt_broker_host_ip,
+            decode_video_func=None,
+            num_decode_video_workers=0
+        )
         self.server_manager.start_servers()
 
-    # ------------------------------------------------------------------
+        self.axis_state = {
+            "ABS_X": 0.0,   # Left stick X
+            "ABS_Y": 0.0,   # Left stick Y
+            "ABS_RX": 0.0,  # Right stick X
+            "ABS_RY": 0.0,  # Right stick Y
+        }
+        self.button_state = {}
+        self.running = True
+
+        # start gamepad thread
+        self.poll_thread = threading.Thread(target=self._poll_gamepad, daemon=True)
+        self.poll_thread.start()
+
+        # start command loop thread
+    def start_loop(self):
+        self.command_thread = threading.Thread(target=self._command_loop, daemon=True)
+        self.command_thread.start()
+
+        print("🎮 Headless Windows controller started")
+
+    def _poll_gamepad(self):
+        """Continuously read inputs and update axis/button states."""
+        while self.running:
+            try:
+                events = get_gamepad()
+                for event in events:
+                    if event.code in self.axis_state:
+                        self.axis_state[event.code] = event.state / 32768.0
+                    elif event.code.startswith("BTN_"):
+                        self.button_state[event.code] = bool(event.state)
+            except Exception:
+                pass  # Ignore temporary disconnections
+
+    def _command_loop(self, hz=30):
+        """Send motion commands periodically."""
+        import time
+        period = 1.0 / hz
+        while self.running:
+            self._publish_robot_motion()
+            time.sleep(period)
+
     def send_command(self, command: str):
+        """Send command to MQTT or server."""
         try:
             self.server_manager.send_command(command)
         except Exception as e:
             logger.error(f"Command send failed: {e}")
 
-    # ------------------------------------------------------------------
     def _publish_robot_motion(self):
-        # print("function accessed")
-        vx = vy = w = 0.0
+        """Compute robot velocity vector from joystick."""
+        x_axis = self.axis_state.get("ABS_X", 0.0)
+        y_axis = self.axis_state.get("ABS_Y", 0.0)
+        rot_axis = self.axis_state.get("ABS_RX", 0.0)
 
-        if self.joystick and self.joystick.get_init():
-            try:
-                pygame.event.pump()
-                x_axis = self.joystick.get_axis(0)
-                y_axis = self.joystick.get_axis(1)
-                rot_axis = self.joystick.get_axis(2)
-                print(f"[AXIS] {x_axis:.3f}, {y_axis:.3f}, {rot_axis:.3f}")
-            except Exception:
-                x_axis = y_axis = rot_axis = 0.0
+        # Debug print
+        # print(f"[AXIS] x={x_axis:.3f}, y={y_axis:.3f}, rot={rot_axis:.3f}")
 
-            vx = x_axis * 40.0
-            vy = -y_axis * 40.0
-            w = rot_axis * 40.0
+        # Convert to velocity values
+        vx = x_axis * 40.0
+        vy = -y_axis * 40.0
+        w = rot_axis * 40.0
 
         # Deadzone
         if abs(vx) < 5: vx = 0.0
         if abs(vy) < 5: vy = 0.0
         if abs(w) < 5: w = 0.0
 
+        # Emit command
         if vx or vy or w:
             cmd = {"type": "vector", "action": "set", "vx": int(vx), "vy": int(vy), "w": int(w)}
+            print(cmd)
         else:
             cmd = {"type": "all", "action": "stop"}
+            print(cmd)
+
         self.send_command(json.dumps(cmd).encode())
 
-    # ------------------------------------------------------------------
-    def update(self, hz):
-        """Run once per frame."""
-        if not self.running:
-            return
-        self._publish_robot_motion()
-        for event in pygame.event.get():
-            print(f"[EVENT] {event}")
-        self.clock.tick(hz)
+    def send_gimbal_command(self, action: str, degrees: float = 10.0):
+        """Send gimbal control command."""
+        cmd = {
+            "type": "gimbal",
+            "action": action,
+            "degrees": degrees
+        }
+        try:
+            command_json = json.dumps(cmd).encode()
+            self.send_command(command_json)
+        except Exception as e:
+            logger.error(f"Failed to send gimbal command: {e}")
 
-    # ------------------------------------------------------------------
-    def cleanup(self):
-        self.server_manager.close_servers()
-        pygame.quit()
-        print("👋 Controller shut down cleanly")
-
-    # ------------------------------------------------------------------
-    def start_loop(self, hz):
-        """Run in background thread at ~hz."""
-        self.running = True
-
-        def loop():
-            while self.running:
-                self.update(hz)
-                self.clock.tick(hz)
-
-        t = threading.Thread(target=loop, daemon=True)
-        t.start()
-        self._thread = t
-
-    def stop_loop(self):
+    def stop(self):
+        """Stop all threads cleanly."""
         self.running = False
-        if hasattr(self, "_thread"):
-            self._thread.join(timeout=1)
-
-
-# ----------------------------------------------------------------------
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    hc = HeadlessController()
-    hc.start_loop(30)
-    try:
-        while True:
-            pass
-    except KeyboardInterrupt:
-        hc.stop_loop()
-        hc.cleanup()
+        self.poll_thread.join(timeout=1)
+        self.command_thread.join(timeout=1)
+        self.server_manager.close_servers()
+        print("🛑 Controller stopped cleanly")

@@ -69,7 +69,7 @@ class WildlifeBotApp(tk.Tk):
         self.frames = {}  # store references to frames
 
         # Initialize all screens
-        for F in (DeviceControl, ConnectionSetup, Captures):
+        for F in (ConnectionSetup, DeviceControl, Captures):
             frame = F(container)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")

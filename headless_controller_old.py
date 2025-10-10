@@ -76,8 +76,10 @@ class HeadlessController:
         # Emit command
         if vx or vy or w:
             cmd = {"type": "vector", "action": "set", "vx": int(vx), "vy": int(vy), "w": int(w)}
+            print(cmd)
         else:
             cmd = {"type": "all", "action": "stop"}
+            print(cmd)
 
         self.send_command(json.dumps(cmd).encode())
 

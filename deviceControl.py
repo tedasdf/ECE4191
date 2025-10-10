@@ -39,7 +39,8 @@ class DeviceControl(tk.Frame):
             mqtt_port=int(globals.controller_IP.split(":")[1])
             )
         # print(globals.controller_IP.split(":")[0], int(globals.controller_IP.split(":")[1]))
-        self.command_controller.start_loop(30)
+        # self.command_controller.start_loop(30)
+        # self.command_controller.start_loop()
 
         ## Filenames
         self.recorded_audio_file = f"media/recorded_audio.ogg"
@@ -563,7 +564,7 @@ class DeviceControl(tk.Frame):
             self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
             # print("sample size:", p.get_sample_size(pyaudio.paInt16))
 
-            threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start()
+            threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start() #disable audio stream temporarily
 
         else:
             # Stop video and audio stream if already streaming
