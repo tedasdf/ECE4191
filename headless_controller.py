@@ -1,6 +1,7 @@
 import threading
 import json
 import logging
+import time
 from inputs import get_gamepad
 
 logger = logging.getLogger(__name__)
@@ -27,18 +28,18 @@ class HeadlessController:
         self.button_state = {}
         self.running = True
 
+        # start command loop thread
+    def start_loop(self):
         # start gamepad thread
         self.poll_thread = threading.Thread(target=self._poll_gamepad, daemon=True)
         self.poll_thread.start()
 
-        # start command loop thread
-    def start_loop(self):
         self.command_thread = threading.Thread(target=self._command_loop, daemon=True)
         self.command_thread.start()
 
         print("🎮 Headless Windows controller started")
 
-    def _poll_gamepad(self):
+    def _poll_gamepad(self, hz=30):
         """Continuously read inputs and update axis/button states."""
         while self.running:
             try:
@@ -53,7 +54,6 @@ class HeadlessController:
 
     def _command_loop(self, hz=30):
         """Send motion commands periodically."""
-        import time
         period = 1.0 / hz
         while self.running:
             self._publish_robot_motion()

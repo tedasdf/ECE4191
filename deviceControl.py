@@ -255,6 +255,14 @@ class DeviceControl(tk.Frame):
         button_frame = tk.Frame(right_frame)
         button_frame.pack(side="top", fill="x", expand=True)
 
+        self.controller_button = tk.Button(
+            button_frame,
+            text="Start Controls",
+            width=18,
+            command=lambda: self.command_controller.start_loop()
+        )
+        self.controller_button.grid(row=1, column=1, sticky="nsew")
+
         self.stream_toggle_button = tk.Button(
             button_frame, text="Start Stream", width=18, bg="white",
             command=lambda: self.stream_toggle())
