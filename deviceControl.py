@@ -75,9 +75,10 @@ class DeviceControl(tk.Frame):
         self.audio_classifier = None
         self.classification_enabled = False
         self.classification_thread = None
-        self.detected_creatures = []
-        self.creature_counts = {}  # Track occurrence counts for top 1 predictions
-        self.recent_predictions = []  # Store recent top 3 predictions
+        
+        # Voting system tracking
+        self.detected_animals = {}  # Track which animals have been officially detected via voting
+        self.last_announced_animal = None  # Track last announced detection to avoid spam
         
         # Initialize audio classifier in a separate thread to avoid blocking UI
         threading.Thread(target=self._init_audio_classifier, daemon=True).start()
@@ -772,8 +773,8 @@ class DeviceControl(tk.Frame):
                     pass
 
             self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir)
-            self.after(0, self._update_classifier_status, "High-accuracy classifier ready")
-            print("High-accuracy audio classifier initialized successfully!")
+            self.after(0, self._update_classifier_status, "CRNN classifier ready ✅")
+            print("CRNN audio classifier initialized successfully!")
             
         except Exception as e:
             print(f"Error initializing audio classifier: {e}")
@@ -799,124 +800,206 @@ class DeviceControl(tk.Frame):
             self.classification_enabled = True
             self.audio_classification_button.config(text="Stop Audio Detection", bg="red")
             
-            # Reset occurrence counts when starting new session
-            self.creature_counts = {}
-            self.recent_predictions = []
+            # Reset voting system and detection tracking
+            self.detected_animals = {}
+            self.last_announced_animal = None
+            if self.audio_classifier:
+                self.audio_classifier.reset_voting_history()
             
             # Start classification thread
             self.classification_thread = threading.Thread(target=self._classification_loop, daemon=True)
             self.classification_thread.start()
             
             self.detect_listbox.delete(0, tk.END)
-            self.detect_listbox.insert("end", "Audio detection started (10s intervals)...")
-            print("High-accuracy audio classification started (10-second intervals)")
+            self.detect_listbox.insert("end", "🎵 Audio detection started!")
+            self.detect_listbox.insert("end", "   Analyzing every 3 seconds...")
+            self.detect_listbox.insert("end", "   Voting window: 30 seconds (10 predictions)")
+            self.detect_listbox.insert("end", "   Detection requires 70% vote agreement")
+            print("CRNN audio classification started (3-second intervals with voting)")
         else:
             # Stop classification
             self.classification_enabled = False
             self.audio_classification_button.config(text="Start Audio Detection", bg="SystemButtonFace")
             
             self.detect_listbox.delete(0, tk.END)
-            self.detect_listbox.insert("end", "Audio detection stopped")
+            self.detect_listbox.insert("end", "🛑 Audio detection stopped")
+            
+            # Show final summary if any detections
+            if self.detected_animals:
+                self.detect_listbox.insert("end", "")
+                self.detect_listbox.insert("end", "📊 Session Summary:")
+                sorted_detections = sorted(self.detected_animals.items(), key=lambda x: x[1], reverse=True)
+                for animal, count in sorted_detections:
+                    self.detect_listbox.insert("end", f"   {animal}: {count} confirmed detections")
+
             print("Audio classification stopped")
     
     def _classification_loop(self):
-        """Background thread for continuous audio classification"""
+        """Background thread for continuous audio classification using CRNN model with voting"""
         while self.classification_enabled and self.audio_classifier is not None:
             try:
                 # Get audio data from buffer
                 if len(self.audio_buffer) > 0:
-                    # Convert deque to numpy array and flatten
-                    # audio_chunks = list(self.audio_buffer)
+                    # Get recent audio from buffer (last ~3 seconds for one prediction)
+                    # GUI audio is 44100 Hz, we need ~3 seconds = 132300 samples
+                    samples_needed = int(3.0 * self.AUDIO_RATE)  # 3 seconds at 44100 Hz
+                    
+                    # Convert buffer to audio array
                     raw_audio_data = b"".join(self.audio_buffer)
-                    pcm_data = np.frombuffer(raw_audio_data, dtype=np.int16)
-                    if pcm_data.any():
-                        # Concatenate more recent audio chunks (approximately 10 seconds)
-                        # audio_data = np.concatenate(pcm_data[-10:], axis=0)  # Last 10 chunks for ~10 seconds
-                        audio_data = pcm_data[-10:]
+                    audio_data = np.frombuffer(raw_audio_data, dtype=np.int16)
+                    
+                    # Take the most recent samples
+                    if len(audio_data) > samples_needed:
+                        audio_data = audio_data[-samples_needed:]
+                    
+                    # Ensure it's 1D (mono)
+                    if len(audio_data.shape) > 1:
+                        audio_data = np.mean(audio_data, axis=1)
+                    else:
+                        audio_data = audio_data.flatten()
+                    
+                    # Check if audio has meaningful content (not silence)
+                    audio_magnitude = np.max(np.abs(audio_data))
+                    
+                    if audio_magnitude > 100:  # Threshold for int16 audio (adjust as needed)
+                        # Get predictions from CRNN model WITH VOTING
+                        # Pass source sample rate so model can resample properly
+                        result = self.audio_classifier.predict_with_voting(
+                            audio_data, 
+                            source_sample_rate=self.AUDIO_RATE
+                        )
                         
-                        # Convert to mono if stereo
-                        if len(audio_data.shape) > 1:
-                            audio_data = np.mean(audio_data, axis=1)
-                        else:
-                            audio_data = audio_data.flatten()
-                        
-                        # Check if audio has meaningful content
-                        if np.max(np.abs(audio_data)) > 0.01:  # Threshold for silence
-                            # Get predictions
-                            predictions = self.audio_classifier.predict_animal(audio_data)
-                            
-                            # Update UI from main thread
-                            self.after(0, self._update_detections, predictions)
-                        else:
-                            # No meaningful audio detected
-                            self.after(0, self._update_detections_silence)
+                        # Update UI from main thread
+                        self.after(0, self._update_detections, result)
+                    else:
+                        # No meaningful audio detected
+                        self.after(0, self._update_detections_silence)
                 
-                # Wait before next classification (10 seconds to match high accuracy model)
-                time.sleep(10.0)  # 10-second intervals for high accuracy
+                # Wait before next classification (3 seconds to match segment duration)
+                time.sleep(3.0)  # 3-second intervals to match model training
                 
             except Exception as e:
                 print(f"Error in classification loop: {e}")
+                import traceback
+                traceback.print_exc()
                 self.after(0, self._update_detections_error, str(e))
                 time.sleep(3.0)
     
-    def _update_detections(self, predictions):
-        """Update the creatures detected listbox with predictions and track occurrence counts"""
-        print("updating predictions...")
+    def _update_detections(self, result):
+        """
+        Update the creatures detected listbox with voting-based detections
+        
+        Args:
+            result: Dictionary with 'current' predictions and 'voting' results
+                {
+                    'current': [(animal, confidence), ...],
+                    'voting': {
+                        'prediction': animal_name,
+                        'vote_percentage': 0.7,
+                        'avg_confidence': 0.85,
+                        'is_confident': True/False
+                    }
+                }
+        """
         if not self.classification_enabled:
             return
-            
-        # Track top 1 prediction occurrence
-        if predictions and len(predictions) > 0:
-            top_animal = predictions[0][0]
-            if top_animal in self.creature_counts:
-                self.creature_counts[top_animal] += 1
-            else:
-                self.creature_counts[top_animal] = 1
         
-        # Store recent predictions for logging
-        self.recent_predictions.append(predictions)
-        if len(self.recent_predictions) > 20:  # Keep last 20 predictions
-            self.recent_predictions.pop(0)
-            
+        # Extract current predictions and voting result
+        current_predictions = result.get('current', [])
+        voting_info = result.get('voting', {})
+        
+        # Get voting decision
+        voted_animal = voting_info.get('prediction')
+        vote_pct = voting_info.get('vote_percentage', 0.0)
+        avg_conf = voting_info.get('avg_confidence', 0.0)
+        is_confident = voting_info.get('is_confident', False)
+        
         # Clear current list
         self.detect_listbox.delete(0, tk.END)
         
         # Add timestamp
         timestamp = datetime.datetime.now().strftime('%H:%M:%S')
-        self.detect_listbox.insert("end", f"🕒 {timestamp} - Audio Analysis (10s):")
+        self.detect_listbox.insert("end", f"🕒 {timestamp} - Audio Analysis (3s):")
         self.detect_listbox.insert("end", "=" * 45)
         
-        # Add top 3 real-time predictions
-        for i, (animal, confidence) in enumerate(predictions[:3], 1):
+        # Show top 3 current predictions (real-time, before voting)
+        self.detect_listbox.insert("end", "📊 Current Prediction:")
+        for i, (animal, confidence) in enumerate(current_predictions[:3], 1):
             confidence_percent = confidence * 100
             emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
-            display_text = f"{emoji} #{i}: {animal:<12} ({confidence_percent:5.1f}%)"
+            display_text = f"{emoji} #{i}: {animal:<15} ({confidence_percent:5.1f}%)"
             self.detect_listbox.insert("end", display_text)
         
         self.detect_listbox.insert("end", "=" * 45)
         
-        # Add occurrence summary for top detections
-        if self.creature_counts:
-            self.detect_listbox.insert("end", "📊 Detection Summary:")
-            # Sort by occurrence count
-            sorted_counts = sorted(self.creature_counts.items(), key=lambda x: x[1], reverse=True)
-            for animal, count in sorted_counts[:5]:  # Show top 5
-                self.detect_listbox.insert("end", f"   {animal}: {count} detections")
+        # Show voting status
+        if voted_animal:
+            self.detect_listbox.insert("end", "�️  Voting Window (30s):")
+            
+            # Show vote percentage as progress bar
+            bar_length = 20
+            filled = int(bar_length * vote_pct)
+            bar = "█" * filled + "░" * (bar_length - filled)
+            self.detect_listbox.insert("end", f"   {voted_animal}:")
+            self.detect_listbox.insert("end", f"   [{bar}] {vote_pct*100:.0f}%")
+            self.detect_listbox.insert("end", f"   Confidence: {avg_conf*100:.1f}%")
+            
+            # Check if this is a CONFIRMED DETECTION
+            if is_confident:
+                # Official detection - animal has passed voting threshold!
+                self.detect_listbox.insert("end", "")
+                self.detect_listbox.insert("end", "✅ ANIMAL DETECTED! ✅")
+                self.detect_listbox.insert("end", f"🎯 {voted_animal}")
+                self.detect_listbox.insert("end", "")
+                
+                # Track detection
+                if voted_animal not in self.detected_animals:
+                    self.detected_animals[voted_animal] = 0
+                self.detected_animals[voted_animal] += 1
+                
+                # Announce new detection (avoid spam)
+                if self.last_announced_animal != voted_animal:
+                    print(f"\n{'='*60}")
+                    print(f"🚨 NEW ANIMAL DETECTED: {voted_animal} 🚨")
+                    print(f"   Vote: {vote_pct*100:.0f}% | Confidence: {avg_conf*100:.1f}%")
+                    print(f"{'='*60}\n")
+                    self.last_announced_animal = voted_animal
+                    
+                    # Log to file
+                    try:
+                        if hasattr(self, 'gui_log_path') and self.gui_log_path:
+                            with open(self.gui_log_path, "a") as f:
+                                f.write(f"{datetime.datetime.now().isoformat()} - DETECTION: {voted_animal} (Vote: {vote_pct*100:.0f}%, Conf: {avg_conf*100:.1f}%)\n")
+                    except Exception:
+                        pass
+            else:
+                # Not enough votes yet
+                from config import VOTING_THRESHOLD
+                needed_pct = VOTING_THRESHOLD * 100
+                self.detect_listbox.insert("end", f"   ⏳ Need {needed_pct:.0f}% to confirm")
+        else:
+            self.detect_listbox.insert("end", "🗳️  Voting Window: Empty")
+            self.detect_listbox.insert("end", "   Waiting for predictions...")
+        
+        self.detect_listbox.insert("end", "=" * 45)
+        
+        # Show detection summary if any animals have been detected
+        if self.detected_animals:
+            self.detect_listbox.insert("end", "📋 Confirmed Detections:")
+            sorted_detections = sorted(self.detected_animals.items(), key=lambda x: x[1], reverse=True)
+            for animal, count in sorted_detections[:5]:  # Show top 5
+                self.detect_listbox.insert("end", f"   ✓ {animal}: {count}x")
         
         # Auto-scroll to bottom
         self.detect_listbox.see(tk.END)
         
-        # Log the prediction
-        top_prediction = predictions[0] if predictions else ("Unknown", 0.0)
-        log_msg = f"TOP: {top_prediction[0]} ({top_prediction[1]*100:.2f}%) [Count: {self.creature_counts.get(top_prediction[0], 0)}] | ALL: {', '.join([f'{name}({conf*100:.1f}%)' for name, conf in predictions[:3]])}"
-        print(f"Audio Detection Log: {log_msg}")
-        # Append to GUI-side log file
-        try:
-            if hasattr(self, 'gui_log_path') and self.gui_log_path:
-                with open(self.gui_log_path, "a") as f:
-                    f.write(f"{datetime.datetime.now().isoformat()} - {log_msg}\n")
-        except Exception:
-            pass
+        # Console log (simplified)
+        if is_confident:
+            log_msg = f"DETECTED: {voted_animal} (Vote: {vote_pct*100:.0f}%, Conf: {avg_conf*100:.1f}%)"
+        else:
+            top = current_predictions[0] if current_predictions else ("None", 0.0)
+            log_msg = f"Current: {top[0]} ({top[1]*100:.1f}%) | Voting: {voted_animal or 'None'} ({vote_pct*100:.0f}%)"
+        print(f"Audio: {log_msg}")
     
     def _update_detections_silence(self):
         """Update listbox when no meaningful audio detected"""
@@ -937,6 +1020,6 @@ class DeviceControl(tk.Frame):
             
         timestamp = datetime.datetime.now().strftime('%H:%M:%S')
         self.detect_listbox.delete(0, tk.END)
-        self.detect_listbox.insert("end", f"🕒 {timestamp} (10s interval)")
+        self.detect_listbox.insert("end", f"🕒 {timestamp} (3s interval)")
         self.detect_listbox.insert("end", f"❌ Error: {error_msg}")
-        self.detect_listbox.insert("end", "Retrying in 10 seconds...")
+        self.detect_listbox.insert("end", "Retrying in 3 seconds...")
