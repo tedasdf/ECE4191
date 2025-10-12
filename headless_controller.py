@@ -26,38 +26,62 @@ class HeadlessController:
             "ABS_RY": 0.0,  # Right stick Y
         }
         self.button_state = {}
+
+    def start_loop(self, poll_hz=30, cmd_hz=30):
         self.running = True
+        # Timer handles for cancellation
+        self._poll_timer = None
+        self._cmd_timer = None
+        # Non-reentrancy guard for command publisher
+        self._cmd_lock = getattr(self, "_cmd_lock", threading.Lock())
 
-        # start command loop thread
-    def start_loop(self):
-        # start gamepad thread
-        self.poll_thread = threading.Thread(target=self._poll_gamepad, daemon=True)
-        self.poll_thread.start()
+        # Kick off self-rescheduling tasks (no dedicated threads needed)
+        self._poll_gamepad(hz=poll_hz)
+        self._command_loop(hz=cmd_hz)
 
-        self.command_thread = threading.Thread(target=self._command_loop, daemon=True)
-        self.command_thread.start()
-
-        print("🎮 Headless Windows controller started")
+    print("🎮 Headless Windows controller started")
 
     def _poll_gamepad(self, hz=30):
-        """Continuously read inputs and update axis/button states."""
-        while self.running:
-            try:
-                events = get_gamepad()
-                for event in events:
-                    if event.code in self.axis_state:
-                        self.axis_state[event.code] = event.state / 32768.0
-                    elif event.code.startswith("BTN_"):
-                        self.button_state[event.code] = bool(event.state)
-            except Exception:
-                pass  # Ignore temporary disconnections
+        """Poll once, update states, and reschedule without blocking."""
+        if not getattr(self, "running", False):
+            return
+
+        try:
+            events = get_gamepad()  # If this blocks, it only blocks this tick.
+            for event in events:
+                if event.code in self.axis_state:
+                    self.axis_state[event.code] = event.state / 32768.0
+                elif event.code.startswith("BTN_"):
+                    self.button_state[event.code] = bool(event.state)
+        except Exception:
+            pass  # Ignore temporary disconnections
+
+        # Schedule next tick
+        delay = max(0.0, 1.0 / float(hz))
+        t = threading.Timer(delay, self._poll_gamepad, kwargs={"hz": hz})
+        t.daemon = True
+        self._poll_timer = t
+        t.start()
 
     def _command_loop(self, hz=30):
-        """Send motion commands periodically."""
-        period = 1.0 / hz
-        while self.running:
-            self._publish_robot_motion()
-            time.sleep(period)
+        """Send motion commands periodically without blocking the caller."""
+        if not getattr(self, "running", False):
+            return
+
+        # Try a non-blocking acquire — if the previous tick is still running, skip this one.
+        acquired = self._cmd_lock.acquire(blocking=False)
+        if acquired:
+            try:
+                self._publish_robot_motion()
+            finally:
+                self._cmd_lock.release()
+
+        # Schedule next tick
+        delay = max(0.0, 1.0 / float(hz))
+        t = threading.Timer(delay, self._command_loop, kwargs={"hz": hz})
+        t.daemon = True
+        self._cmd_timer = t
+        t.start()
 
     def send_command(self, command: str):
         """Send command to MQTT or server."""
@@ -108,10 +132,14 @@ class HeadlessController:
         except Exception as e:
             logger.error(f"Failed to send gimbal command: {e}")
 
-    def stop(self):
-        """Stop all threads cleanly."""
+    def stop_loop(self):
+        """Stop everything and cancel scheduled timers."""
         self.running = False
-        self.poll_thread.join(timeout=1)
-        self.command_thread.join(timeout=1)
-        self.server_manager.close_servers()
-        print("🛑 Controller stopped cleanly")
+        t = getattr(self, "_poll_timer", None)
+        if t is not None:
+            t.cancel()
+            self._poll_timer = None
+        t = getattr(self, "_cmd_timer", None)
+        if t is not None:
+            t.cancel()
+            self._cmd_timer = None
