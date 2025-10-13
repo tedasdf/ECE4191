@@ -18,3 +18,4 @@ high_accuracy_classifier.pkl
 
 *.pyc
 high_accuracy_predictions*
+logs/
