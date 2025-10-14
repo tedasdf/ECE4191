@@ -518,10 +518,10 @@ class DeviceControl(tk.Frame):
                 frame = annotated_frame
 
             # Display the frame in the GUI
-            img = Image.fromarray(frame)
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.video_label.imgtk = imgtk
-            self.video_label.config(image=imgtk)
+            # img = Image.fromarray(frame)
+            # imgtk = ImageTk.PhotoImage(image=img)
+            # self.video_label.imgtk = imgtk
+            # self.video_label.config(image=imgtk)
 
             # Schedule the next frame update
             self.video_label.after(20, video_loop)  # schedule next frame
@@ -595,31 +595,10 @@ class DeviceControl(tk.Frame):
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
-            # globals.capture.release()
-            # print("Stopping WebRTC connection...")
-            # self.webrtc_close_future = asyncio.run_coroutine_threadsafe(
-            #     self.webrtc_client.close_connection(),
-            #     self.webrtc_loop
-            # )
-            # print("Waiting for WebRTC connection to close...")
-            # self.webrtc_close_future.result()  # wait for closure to complete
-            # print("Waiting for WebRTC connection thread to finish...")
-            # self.webrtc_connection_future.result()  # wait for connection to finish
-
-            # print("WebRTC connection closed.")
-            # if self.webrtc_loop:
-            #     self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
-            #     self.webrtc_loop = None
-            # print("WebRTC event loop stopped.")
 
             self.webrtc_client.stop_connection()
             # self.webrtc_client.close_thread()
             print("WebRTC connection closed.")
-
-            # self.stop_audio_stream()
-            # audio_stream.stop_stream()
-            # audio_stream.close()
-            # p.termiate()
 
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)
