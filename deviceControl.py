@@ -622,26 +622,26 @@ class DeviceControl(tk.Frame):
             globals.upKeyState = False
             stateChange = True
             # send tilt stop command
-            self.sendServoControl("tiltStop")
+            # self.sendServoControl("tiltStop")
             
 
         elif e.keysym == "Down" and globals.downKeyState:
             globals.downKeyState = False
             stateChange = True
             # send tilt stop command
-            self.sendServoControl("tiltStop")
+            # self.sendServoControl("tiltStop")
 
         elif e.keysym == "Left" and globals.leftKeyState:
             globals.leftKeyState = False
             stateChange = True
             # send tilt stop command
-            self.sendServoControl("panStop")
+            # self.sendServoControl("panStop")
 
         elif e.keysym == "Right" and globals.rightKeyState:
             globals.rightKeyState = False
             stateChange = True
             # send tilt stop command
-            self.sendServoControl("panStop")
+            # self.sendServoControl("panStop")
 
         elif e.keysym == "apostrophe" and globals.apostropheState:
             globals.apostropheState = False
@@ -667,7 +667,7 @@ class DeviceControl(tk.Frame):
             globals.upKeyState = True
             stateChange = True
             # send tilt up command
-            self.sendServoControl("tiltUp")
+            # self.sendServoControl("tiltUp")
             try:
                 tilt_angle = max(tilt_angle - 10, 0)
                 print(f"tilt angle {tilt_angle}")
@@ -679,7 +679,7 @@ class DeviceControl(tk.Frame):
             globals.downKeyState = True
             stateChange = True
             # send tilt down command
-            self.sendServoControl("tiltDown")
+            # self.sendServoControl("tiltDown")
             try:
                 tilt_angle = min(tilt_angle + 10, 90)
                 print(f"tilt angle {tilt_angle}")
@@ -691,7 +691,7 @@ class DeviceControl(tk.Frame):
             globals.leftKeyState = True
             stateChange = True
             # send tilt down command
-            self.sendServoControl("panLeft")
+            # self.sendServoControl("panLeft")
             try:
                 pan_angle = min(pan_angle + 5, 90)
                 print(f"pan angle {pan_angle}")
@@ -703,7 +703,7 @@ class DeviceControl(tk.Frame):
             globals.rightKeyState = True
             stateChange = True
             # send tilt down command
-            self.sendServoControl("panRight")
+            # self.sendServoControl("panRight")
             try:
                 pan_angle = max(pan_angle - 5, 0)
                 print(f"pan angle {pan_angle}")
