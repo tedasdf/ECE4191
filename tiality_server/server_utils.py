@@ -4,9 +4,6 @@ from .video_streaming import decoder_worker
 from .command_streaming import publisher as command_publisher
 
 def _connection_manager_worker(
-    grpc_port,
-    incoming_video_queue,
-    decoded_video_queue,
     mqtt_broker_host_ip,
     mqtt_port,
     tx_topic,
@@ -14,15 +11,12 @@ def _connection_manager_worker(
     command_queue,
     connection_established_event,
     shutdown_event,
-    decode_video_func=None,
-    num_decode_video_workers=0,
     threads_dict=None
 ):
     """
     Non-blocking connection manager for video + command threads.
     threads_dict: dictionary to track live threads
     """
-    video_enabled = decode_video_func is not None and num_decode_video_workers > 0
 
     print("attempting to connect")
 
@@ -32,23 +26,6 @@ def _connection_manager_worker(
 
         try:
             # --- Video ---
-            if video_enabled:
-                if threads_dict["video_producer"] is None or not threads_dict["video_producer"].is_alive():
-                    threads_dict["video_producer"] = threading.Thread(
-                        target=video_server.serve,
-                        args=(grpc_port, incoming_video_queue, connection_established_event, shutdown_event),
-                        daemon=True
-                    )
-                    threads_dict["video_producer"].start()
-
-                for i in range(num_decode_video_workers):
-                    if threads_dict["video_decoders"][i] is None or not threads_dict["video_decoders"][i].is_alive():
-                        threads_dict["video_decoders"][i] = threading.Thread(
-                            target=decoder_worker.start_decoder_worker,
-                            args=(incoming_video_queue, decoded_video_queue, decode_video_func, shutdown_event),
-                            daemon=True
-                        )
-                        threads_dict["video_decoders"][i].start()
 
             # --- Command ---
             if threads_dict["command_sender"] is None or not threads_dict["command_sender"].is_alive():
