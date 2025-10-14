@@ -9,6 +9,7 @@ import threading
 import time
 import datetime
 from collections import deque
+import asyncio
 
 from webRTC import WebRTCStream
 from ultralytics import YOLO
@@ -38,9 +39,6 @@ class DeviceControl(tk.Frame):
             mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
             mqtt_port=int(globals.controller_IP.split(":")[1])
             )
-        # print(globals.controller_IP.split(":")[0], int(globals.controller_IP.split(":")[1]))
-        # self.command_controller.start_loop(30)
-        # self.command_controller.start_loop()
 
         ## Filenames
         self.recorded_audio_file = f"media/recorded_audio.ogg"
@@ -147,7 +145,7 @@ class DeviceControl(tk.Frame):
         self.detect_listbox.pack(side="left", fill="both", expand=True)
 
         detect_scrollbar.config(command=self.detect_listbox.yview)
-        detect_scrollbar.config(command=self.detect_listbox.yview)
+        # detect_scrollbar.config(command=self.detect_listbox.yview)
 
         # Add initial message while audio classifier loads
         self.detect_listbox.insert("end", "Audio classifier loading...")
@@ -481,17 +479,12 @@ class DeviceControl(tk.Frame):
 
             frame = self.webrtc_client.get_frame()
             if frame is None:
-                # self.video_label.after(20, video_loop)  # schedule next frame
                 print("No frame received")
                 return
             
             if self.awb_enabled.get():
                 frame = gray_world_awb(frame)
 
-
-            # Some basic image processing
-            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            #frame = cv2.resize(frame, (600, 400))  # fit the label size
             if self.toggle_model:
                 results = self.yolo_model(frame, conf=0.5)
 
@@ -499,25 +492,9 @@ class DeviceControl(tk.Frame):
                 annotated_frame = results[0].plot()
                 frame = annotated_frame
 
-            # Display the frame in the GUI
-            # img = Image.fromarray(frame)
-            # imgtk = ImageTk.PhotoImage(image=img)
-            # self.video_label.imgtk = imgtk
-            # self.video_label.config(image=imgtk)
-
             # Schedule the next frame update
-            self.video_label.after(20, video_loop)  # schedule next frame
+            self.video_label.after(60, video_loop)  # schedule next frame
             self.frame_buffer.append(frame.copy()) # add recording to video buffer
-            # else:
-            #     if globals.streaming:
-            #         globals.streaming = False
-            #         self.stream_toggle_button.config(text="Start Stream")
-            #         self.video_label.config(image=self.stream_standby_photo)
-            #         # audio_stream.stop_stream()
-            #         # audio_stream.close()
-            #         # p.termiate()
-            #         messagebox.showerror("Error", "Video Disconnected")
-            #         return
 
 
         def _audio_stream_loop(sock):
@@ -545,7 +522,6 @@ class DeviceControl(tk.Frame):
 
         if not globals.streaming:
             # Start video stream if not streaming
-            # globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
             self.stream_toggle_button.config(text="Stop Stream")
             
@@ -570,8 +546,6 @@ class DeviceControl(tk.Frame):
             # Initialize PyAudio
             p = pyaudio.PyAudio()
             self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
-            # print("sample size:", p.get_sample_size(pyaudio.paInt16))
-
             threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start() #disable audio stream temporarily
 
         else:

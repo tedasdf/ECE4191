@@ -20,10 +20,9 @@ class WebRTCStream:
     def set_stream_link(self, link):
         self.link = link
     
-    def get_frame(self, timeout=None):
+    def get_frame(self, timeout=0):
         try:
-            frame = self.buffer.get(timeout=timeout)
-            return frame
+            return self.buffer.get(timeout=timeout) if timeout else self.buffer.get_nowait()
         except queue.Empty:
             return None
 
