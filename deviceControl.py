@@ -109,6 +109,7 @@ class DeviceControl(tk.Frame):
         self.toggle_model = False
 
         self.webrtc_client.start_thread()
+        self.webrtc_stream_is_runnning = False
         self.layout()
 
 
@@ -557,11 +558,13 @@ class DeviceControl(tk.Frame):
 
             if not self.webrtc_client.is_connected():
                 print("WebRTC Connection failed, restaring thread")
+                self.webrtc_stream_is_runnning = False
                 # globals.streaming = False
                 self.stream_toggle_button.config(text="Start Stream")
                 self.webrtc_client.close_thread()
                 self.webrtc_client.start_thread()
             else:
+                self.webrtc_stream_is_runnning = True
                 video_loop()
 
             # create a socket and bind it to the audio stream ip and port
@@ -595,9 +598,10 @@ class DeviceControl(tk.Frame):
             #     self.webrtc_loop = None
             # print("WebRTC event loop stopped.")
 
-            self.webrtc_client.stop_connection()
-            # self.webrtc_client.close_thread()
-            print("WebRTC connection closed.")
+            if self.webrtc_stream_is_runnning:
+                self.webrtc_client.stop_connection()
+                # self.webrtc_client.close_thread()
+                print("WebRTC connection closed.")
 
             # self.stop_audio_stream()
             # audio_stream.stop_stream()
