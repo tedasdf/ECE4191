@@ -656,7 +656,6 @@ class DeviceControl(tk.Frame):
         if stateChange:
             print(e.keysym, 'released')
 
-
     def keydown(self, e):
         global pan_angle
         global tilt_angle
@@ -715,8 +714,6 @@ class DeviceControl(tk.Frame):
         elif e.keysym == "apostrophe" and not globals.apostropheState:
             globals.apostropheState = True
             stateChange = True
-            # send tilt down command
-            # self.sendServoControl("craneUp")
             try:
                 crane_angle = min(crane_angle + 10, 90)
                 print(f"crane angle {crane_angle}")
@@ -727,8 +724,6 @@ class DeviceControl(tk.Frame):
         elif e.keysym == "slash" and not globals.slashState:
             globals.slashState = True
             stateChange = True
-            # send tilt down command
-            # self.sendServoControl("craneDown")
             try:
                 crane_angle = max(crane_angle - 10, 0)
                 print(f"crane angle {crane_angle}")
@@ -739,13 +734,6 @@ class DeviceControl(tk.Frame):
         if stateChange:
             print(e.keysym, 'pressed')
 
-    def sendServoControl(self, command):
-        if globals.streaming:
-            requests.get(f"http://{globals.PI_IP}:5000/{command}")
-
-    def reset_pan():
-        global pan_speed_percent
-        pan_speed_percent = 0
 
 
 
