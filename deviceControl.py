@@ -38,14 +38,16 @@ class DeviceControl(tk.Frame):
             mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
             mqtt_port=int(globals.controller_IP.split(":")[1])
             )
-        # print(globals.controller_IP.split(":")[0], int(globals.controller_IP.split(":")[1]))
-        # self.command_controller.start_loop(30)
-        # self.command_controller.start_loop()
+        print(globals.controller_IP.split(":")[0], int(globals.controller_IP.split(":")[1]))
+        self.command_controller.start_loop(30)
+        self.command_controller.start_loop()
 
-        ## Filenames
-        self.recorded_audio_file = f"media/recorded_audio.ogg"
-        self.buffer_audio_clip_file = f"media/buffer_audio.wav" # filename for the audio clip saved by the audio buffer
-        self.recorded_video_file = f"media/recorded_video.mp4" # filename for the manually recorded video clip
+        ## make directories for media if they don't already exist
+        os.makedirs("media", exist_ok=True)
+        os.makedirs("media/audio_detections", exist_ok=True)
+        os.makedirs("media/recordings/audio", exist_ok=True)
+        os.makedirs("media/recordings/video", exist_ok=True)
+        os.makedirs("media/visual_detections", exist_ok=True)
 
         ## Video stream stuff
         self.fps = 24   # FPS of the stream
@@ -65,7 +67,7 @@ class DeviceControl(tk.Frame):
 
         # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
-        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.AUDIO_RATE // self.AUDIO_CHUNK_SIZE)  # 1024-frame chunks
+        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.AUDIO_RATE // (self.AUDIO_CHUNK_SIZE*4))  # 1024-frame chunks
 
         # an array to hold the audio recording data
         self.audio_recording = []
@@ -188,15 +190,6 @@ class DeviceControl(tk.Frame):
         cam_frame.columnconfigure(1, weight=1) 
         cam_frame.columnconfigure(2, weight=1)
 
-        # tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
-        # ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
-
-        # tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
-        # ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
-
-        # tk.Label(cam_frame, text="Tilt:").grid(row=2, column=0, sticky="w")
-        # ttk.Scale(cam_frame, from_=0, to=90, orient="horizontal").grid(row=2, column=1, sticky="ew")
-
         def torch_1_control():
             try:
                 requests.get(
@@ -284,39 +277,48 @@ class DeviceControl(tk.Frame):
 
         btn_yolo = tk.Button(button_frame, text="Bounding Box Toggle", width=18, command=toggle_yolo)
         btn_yolo.grid(row=1, column=2, sticky="nsew")
-        
-        # --- Audio Section ---
-        bottom_frame = tk.Frame(self)
-        bottom_frame.pack(side="bottom", fill="x", padx=10, pady=10)
 
-        # Left: Audio Visualization
-        bottom_left_frame = tk.Frame(bottom_frame)
-        bottom_left_frame.pack(side="left", fill="both", expand=True)
-
-        audio_frame = tk.LabelFrame(bottom_left_frame, text="Audio Visualisation")
-        audio_frame.pack(side="top", fill="both", expand=True, padx=10, pady=5)
-
-        # Right: Audio controls
-        bottom_right_frame = tk.Frame(bottom_frame)
-        bottom_right_frame.pack(side="right", fill="both")
-
-        audio_controls_frame = tk.Frame(bottom_right_frame)
-        audio_controls_frame.pack(side="top", fill="x", padx=10, pady=5)
-
+        # Volume slider
         self.volume_slider = tk.Scale(
-            audio_controls_frame, from_=0, to=100, orient="horizontal",
+            right_frame, from_=0, to=100, orient="horizontal",
             label="Volume", command=self.set_volume, length=200
         )
         self.volume_slider.pack(pady=2, fill="x", expand=True)
         self.volume_slider.set(50)  # default volume
+        
+        # --- Audio Section ---
+        # bottom_frame = tk.Frame(self)
+        # bottom_frame.pack(side="bottom", fill="x", padx=10, pady=10)
+
+        # Left: Audio Visualization
+        # bottom_left_frame = tk.Frame(bottom_frame)
+        # bottom_left_frame.pack(side="left", fill="both", expand=True)
+
+        # audio_frame = tk.LabelFrame(bottom_left_frame, text="Audio Visualisation")
+        # audio_frame.pack(side="top", fill="both", expand=True, padx=10, pady=5)
+
+        # Right: Audio controls
+        # bottom_right_frame = tk.Frame(bottom_frame)
+        # bottom_right_frame.pack(side="right", fill="both")
+
+        # audio_controls_frame = tk.Frame(bottom_right_frame)
+        # audio_controls_frame.pack(side="top", fill="x", padx=10, pady=5)
+
+        # self.volume_slider = tk.Scale(
+        #     audio_controls_frame, from_=0, to=100, orient="horizontal",
+        #     label="Volume", command=self.set_volume, length=200
+        # )
+        # self.volume_slider.pack(pady=2, fill="x", expand=True)
+        # self.volume_slider.set(50)  # default volume
 
 
     def _name_output_file(self, str):
         """
         This is a helper function for adding the date and time that a sample was taken to the name of the file it is saved in
         """
-        bits = str.split(".")
-        return f"{bits[0]}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')}.{bits[1]}"
+        return str + datetime.datetime.now().isoformat(sep="_", timespec='seconds').replace(":", "-")
+        # bits = str.split(".")
+        # return f"{bits[0]}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')}.{bits[1]}"
 
 
     def set_volume(self, value):
@@ -394,7 +396,7 @@ class DeviceControl(tk.Frame):
             print("No frames recorded!")
             return
         
-        output_file = self._name_output_file(self.recorded_video_file)
+        output_file = self._name_output_file("media/recordings/video/recorded_video_") + '.mp4'
 
         # Save video
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -413,7 +415,7 @@ class DeviceControl(tk.Frame):
             print("No audio recorded!")
             return
         
-        output_file = self._name_output_file(self.recorded_audio_file)
+        output_file = self._name_output_file("media/recordings/audio/recorded_audio_") + '.wav'
 
         wf = wave.open(output_file, 'wb')
         wf.setnchannels(self.AUDIO_CHANNELS)
@@ -424,20 +426,35 @@ class DeviceControl(tk.Frame):
         self.audio_recording = [] # clear the recording once its saved
 
 
-    def save_last_audio(self):
+    def save_last_audio(self, N = 30, folder = None, filename = None):
         """
         Save the last N seconds of audio from the buffer to a WAV file.
         """
+
+        if N > 30 or N < 0:
+            print("Invalid N, returning to default")
+            N = 30
+        
+        if not folder:
+            folder = 'recordings/audio/'
+
+        if not filename:
+            filename = 'buffer_audio'
 
         if not self.audio_buffer:
             print("No audio in buffer!")
             return
 
         # Concatenate all buffered chunks
-        data = b"".join(self.audio_buffer)
+        slice_index = int(len(self.audio_buffer) * (N/30))
+        # print("buffer slices:", self.audio_buffer[:slice_index])
+        data = b"".join(list(self.audio_buffer)[:slice_index])
         pcm_data = np.frombuffer(data, dtype=np.int16)
 
-        write_file = self._name_output_file(self.buffer_audio_clip_file)
+        write_file = 'media/' + folder + self._name_output_file(filename+'_') + ".wav"
+
+        # create folder if it doesn't exist
+        os.makedirs('media/' + folder, exist_ok=True)
 
         # Write to WAV file
         with wave.open(write_file, "wb") as wf:
@@ -446,7 +463,7 @@ class DeviceControl(tk.Frame):
             wf.setframerate(self.AUDIO_RATE)
             wf.writeframes(pcm_data.tobytes())
 
-        print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
+        print(f"Saved last {N} seconds of audio to {write_file}")
 
     def stream_toggle(self):
 
@@ -956,6 +973,10 @@ class DeviceControl(tk.Frame):
                 if voted_animal not in self.detected_animals:
                     self.detected_animals[voted_animal] = 0
                 self.detected_animals[voted_animal] += 1
+
+                # save last 15 seconds of audio
+                if voted_animal != "Background":
+                    self.save_last_audio(N = 15, folder = f"audio_detections/{voted_animal}/", filename = voted_animal)
                 
                 # Announce new detection (avoid spam)
                 if self.last_announced_animal != voted_animal:
