@@ -9,11 +9,14 @@ video_url = "http://192.168.0.236:8889/thunderbolt"
 audio_url = "http://192.168.137.2:8080/audio.mp3"
 # PI_IP = "192.168.0.145"
 PI_IP = "10.94.102.23"  # Riley's Raspberry Pi IP 
+controller_IP = "127.0.0.1:1883"  # MQTT broker IP for controller commands
 
 upKeyState = False
 downKeyState = False
 leftKeyState = False
 rightKeyState = False
+slashState = False
+apostropheState = False
 
 streaming = False
 capture = None

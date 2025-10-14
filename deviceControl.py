@@ -19,12 +19,18 @@ import numpy as np
 import wave
 import requests
 
+from headless_controller import HeadlessController
+
 pan_speed_percent = 0  # start at middle
 tilt_angle = 0
 
 class DeviceControl(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
+
+        pan_angle = 45  # start at middle
+        tilt_angle = 0
+        crane_angle = 0
 
         ## Filenames
         self.recorded_audio_file = f"media/recorded_audio.ogg"
@@ -69,6 +75,11 @@ class DeviceControl(tk.Frame):
         self.webrtc_loop = None
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
+
+        self.command_controller = HeadlessController(
+            mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
+            mqtt_port=int(globals.controller_IP.split(":")[1])
+            )
 
         self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
         self.toggle_model = False
@@ -210,6 +221,14 @@ class DeviceControl(tk.Frame):
         self.record_button.grid(row=0, column=2, sticky="nsew")
         self.stream_toggle_button.grid(row=1, column=0, sticky="nsew")
         # tk.Button(button_frame, text="Audio filter toggle", width=18).grid(row=1, column=1, sticky="nsew")
+
+        self.controller_button = tk.Button(
+            button_frame,
+            text="Start Controls",
+            width=18,
+            command=lambda: self.command_controller.start_loop()
+        )
+        self.controller_button.grid(row=1, column=1, sticky="nsew")
 
         def toggle_yolo():
             self.toggle_model = not self.toggle_model
@@ -578,70 +597,126 @@ class DeviceControl(tk.Frame):
     def stop_video_stream(self):
         globals.capture.release()
 
-
     def keyup(self, e):
-        stateChange = False
-        if e.keysym == "Up" and globals.upKeyState:
-            globals.upKeyState = False
-            stateChange = True
-            # send tilt stop command
-            self.sendServoControl("tiltStop")
+            stateChange = False
+            if e.keysym == "Up" and globals.upKeyState:
+                globals.upKeyState = False
+                stateChange = True
+                # send tilt stop command
+                # self.sendServoControl("tiltStop")
+                
 
-        elif e.keysym == "Down" and globals.downKeyState:
-            globals.downKeyState = False
-            stateChange = True
-            # send tilt stop command
-            self.sendServoControl("tiltStop")
+            elif e.keysym == "Down" and globals.downKeyState:
+                globals.downKeyState = False
+                stateChange = True
+                # send tilt stop command
+                # self.sendServoControl("tiltStop")
 
-        elif e.keysym == "Left" and globals.leftKeyState:
-            globals.leftKeyState = False
-            stateChange = True
-            # send tilt stop command
-            self.sendServoControl("panStop")
+            elif e.keysym == "Left" and globals.leftKeyState:
+                globals.leftKeyState = False
+                stateChange = True
+                # send tilt stop command
+                # self.sendServoControl("panStop")
 
-        elif e.keysym == "Right" and globals.rightKeyState:
-            globals.rightKeyState = False
-            stateChange = True
-            # send tilt stop command
-            self.sendServoControl("panStop")
+            elif e.keysym == "Right" and globals.rightKeyState:
+                globals.rightKeyState = False
+                stateChange = True
+                # send tilt stop command
+                # self.sendServoControl("panStop")
 
-        if stateChange:
-            print(e.keysym, 'released')
+            elif e.keysym == "apostrophe" and globals.apostropheState:
+                globals.apostropheState = False
+                stateChange = True
+                # send tilt down command
+            
+            elif e.keysym == "slash" and globals.slashState:
+                globals.slashState = False
+                stateChange = True
+                # send tilt down command
 
+            if stateChange:
+                print(e.keysym, 'released')
 
     def keydown(self, e):
+        global pan_angle
+        global tilt_angle
+        global crane_angle
+
+
         stateChange = False
         if e.keysym == "Up" and not globals.upKeyState:
             globals.upKeyState = True
             stateChange = True
             # send tilt up command
-            self.sendServoControl("tiltUp")
+            # self.sendServoControl("tiltUp")
+            try:
+                tilt_angle = max(tilt_angle - 10, 0)
+                print(f"tilt angle {tilt_angle}")
+                self.command_controller.send_gimbal_command("y", tilt_angle)
+            except:
+                pass
 
         elif e.keysym == "Down" and not globals.downKeyState:
             globals.downKeyState = True
             stateChange = True
             # send tilt down command
-            self.sendServoControl("tiltDown")
+            # self.sendServoControl("tiltDown")
+            try:
+                tilt_angle = min(tilt_angle + 10, 90)
+                print(f"tilt angle {tilt_angle}")
+                self.command_controller.send_gimbal_command("y", tilt_angle)
+            except:
+                pass
 
         elif e.keysym == "Left" and not globals.leftKeyState:
             globals.leftKeyState = True
             stateChange = True
             # send tilt down command
-            self.sendServoControl("panLeft")
+            # self.sendServoControl("panLeft")
+            try:
+                pan_angle = min(pan_angle + 5, 90)
+                print(f"pan angle {pan_angle}")
+                self.command_controller.send_gimbal_command("x", pan_angle)
+            except:
+                pass
 
         elif e.keysym == "Right" and not globals.rightKeyState:
             globals.rightKeyState = True
             stateChange = True
             # send tilt down command
-            self.sendServoControl("panRight")
+            # self.sendServoControl("panRight")
+            try:
+                pan_angle = max(pan_angle - 5, 0)
+                print(f"pan angle {pan_angle}")
+                self.command_controller.send_gimbal_command("x", pan_angle)
+            except:
+                pass
+        
+        elif e.keysym == "apostrophe" and not globals.apostropheState:
+            globals.apostropheState = True
+            stateChange = True
+            try:
+                crane_angle = min(crane_angle + 10, 90)
+                print(f"crane angle {crane_angle}")
+                self.command_controller.send_gimbal_command("c", crane_angle)
+            except:
+                pass
+        
+        elif e.keysym == "slash" and not globals.slashState:
+            globals.slashState = True
+            stateChange = True
+            try:
+                crane_angle = max(crane_angle - 10, 0)
+                print(f"crane angle {crane_angle}")
+                self.command_controller.send_gimbal_command("c", crane_angle)
+            except:
+                pass
         
         if stateChange:
             print(e.keysym, 'pressed')
 
-    def sendServoControl(self, command):
-        if globals.streaming:
-            requests.get(f"http://{globals.PI_IP}:5000/{command}")
 
-    def reset_pan():
-        global pan_speed_percent
-        pan_speed_percent = 0
+
+
+
+    
