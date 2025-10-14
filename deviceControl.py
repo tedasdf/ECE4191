@@ -342,6 +342,33 @@ class DeviceControl(tk.Frame):
         print(f"Saved last 30 seconds of video to {output_file}")
         return 1
     
+
+    def capture_photo(self, animal_name):
+        if not self.frame_buffer:
+            print("No frames in buffer!")
+            return 0
+
+        # Get the most recent frame (last element in the buffer)
+        last_frame = self.frame_buffer[-1]
+
+        # Create the output directory if it doesn't exist
+        output_dir = os.path.join("media", "visual_detections", animal_name)
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Build the filename
+        filename = self._name_output_file(animal_name + "_") + ".jpg"
+        write_path = os.path.join(output_dir, filename)
+
+        # Save the frame as a JPEG
+        success = cv2.imwrite(write_path, last_frame)
+
+        if success:
+            print(f"Saved photo: {write_path}")
+            return write_path
+        else:
+            print("Failed to save photo.")
+            return 0
+    
     
     ### Live Recording Functions
     def toggle_recording(self):
@@ -516,6 +543,8 @@ class DeviceControl(tk.Frame):
             if self.toggle_model:
                 annotated_frame = results[0].plot()
                 frame = annotated_frame
+
+                # TODO add logic to capture photos here
 
             # Display the frame in the GUI
             # img = Image.fromarray(frame)
