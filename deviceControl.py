@@ -738,33 +738,39 @@ class DeviceControl(tk.Frame):
         if stateChange:
             print(e.keysym, 'pressed')
 
+    
     ## Audio Classification Methods ##
     
     def _init_audio_classifier(self):
         """Initialize the audio classifier in a background thread"""
         try:
             print("Initializing audio classifier...")
+            audio_dir = "ECE4191 - Potential Audio Targets"
             
-            # Lazy import - only import when actually initializing the classifier
-            # This prevents TensorFlow from loading at GUI startup which can interfere with WebRTC
-            from high_accuracy_classifier import HighAccuracyAnimalClassifier
-            
-            # Check if model files exist
-            model_path = os.path.join("models", "animal_classifier_best.h5")
-            if not os.path.exists(model_path):
-                print(f"Warning: Model file '{model_path}' not found!")
-                self.after(0, self._update_classifier_status, "Model file not found")
+            if not os.path.exists(audio_dir):
+                print(f"Warning: Audio directory '{audio_dir}' not found!")
+                self.after(0, self._update_classifier_status, "Audio files not found")
                 return
             
             # Initialize the high accuracy classifier
-            self.audio_classifier = HighAccuracyAnimalClassifier()
+            # Ensure logs directory exists and use it for both model and GUI logging
+            self.logs_dir = os.path.join(os.getcwd(), "logs", "audio")
+            os.makedirs(self.logs_dir, exist_ok=True)
+            # GUI-side log file for top-1 occurrences
+            self.gui_log_path = os.path.join(self.logs_dir, "gui_audio_top1.log")
+            if not os.path.exists(self.gui_log_path):
+                try:
+                    with open(self.gui_log_path, "a") as f:
+                        f.write(f"# GUI Audio Top-1 Log - started {datetime.datetime.now().isoformat()}\n")
+                except Exception:
+                    pass
+
+            self.audio_classifier = HighAccuracyAnimalClassifier(audio_dir)
             self.after(0, self._update_classifier_status, "CRNN classifier ready ✅")
             print("CRNN audio classifier initialized successfully!")
             
         except Exception as e:
             print(f"Error initializing audio classifier: {e}")
-            import traceback
-            traceback.print_exc()
             self.after(0, self._update_classifier_status, f"Error: {str(e)}")
     
     def _update_classifier_status(self, message):
@@ -798,7 +804,7 @@ class DeviceControl(tk.Frame):
             self.classification_thread.start()
             
             self.detect_listbox.delete(0, tk.END)
-            self.detect_listbox.insert("end", "   Audio detection started!")
+            self.detect_listbox.insert("end", "🎵 Audio detection started!")
             self.detect_listbox.insert("end", "   Analyzing every 3 seconds...")
             self.detect_listbox.insert("end", "   Voting window: 30 seconds (10 predictions)")
             self.detect_listbox.insert("end", "   Detection requires 70% vote agreement")
@@ -829,32 +835,31 @@ class DeviceControl(tk.Frame):
                 if len(self.audio_buffer) > 0:
                     # Get recent audio from buffer (last ~3 seconds for one prediction)
                     # GUI audio is 44100 Hz, we need ~3 seconds = 132300 samples
-                    samples_needed = int(3.0 * self.audio_sample_rate)  # 3 seconds at 44100 Hz
+                    samples_needed = int(3.0 * self.AUDIO_RATE)  # 3 seconds at 44100 Hz
                     
                     # Convert buffer to audio array
                     raw_audio_data = b"".join(self.audio_buffer)
-                    audio_data = np.frombuffer(raw_audio_data, dtype=np.float32)
+                    audio_data = np.frombuffer(raw_audio_data, dtype=np.int16)
                     
                     # Take the most recent samples
                     if len(audio_data) > samples_needed:
                         audio_data = audio_data[-samples_needed:]
                     
-                    # Ensure it's 1D (mono) - convert stereo to mono by averaging channels
-                    if self.audio_channels == 2:
-                        # Reshape to (samples, 2) and take mean across channels
-                        audio_data = audio_data.reshape(-1, 2).mean(axis=1)
+                    # Ensure it's 1D (mono)
+                    if len(audio_data.shape) > 1:
+                        audio_data = np.mean(audio_data, axis=1)
                     else:
                         audio_data = audio_data.flatten()
                     
                     # Check if audio has meaningful content (not silence)
                     audio_magnitude = np.max(np.abs(audio_data))
                     
-                    if audio_magnitude > 0.01:  # Threshold for float32 audio (adjust as needed)
+                    if audio_magnitude > 100:  # Threshold for int16 audio (adjust as needed)
                         # Get predictions from CRNN model WITH VOTING
                         # Pass source sample rate so model can resample properly
                         result = self.audio_classifier.predict_with_voting(
                             audio_data, 
-                            source_sample_rate=self.audio_sample_rate
+                            source_sample_rate=self.AUDIO_RATE
                         )
                         
                         # Update UI from main thread
@@ -879,6 +884,15 @@ class DeviceControl(tk.Frame):
         
         Args:
             result: Dictionary with 'current' predictions and 'voting' results
+                {
+                    'current': [(animal, confidence), ...],
+                    'voting': {
+                        'prediction': animal_name,
+                        'vote_percentage': 0.7,
+                        'avg_confidence': 0.85,
+                        'is_confident': True/False
+                    }
+                }
         """
         if not self.classification_enabled:
             return
@@ -913,7 +927,7 @@ class DeviceControl(tk.Frame):
         
         # Show voting status
         if voted_animal:
-            self.detect_listbox.insert("end", "🗳️  Voting Window (30s):")
+            self.detect_listbox.insert("end", "�️  Voting Window (30s):")
             
             # Show vote percentage as progress bar
             bar_length = 20
@@ -953,8 +967,8 @@ class DeviceControl(tk.Frame):
                         pass
             else:
                 # Not enough votes yet
-                import config
-                needed_pct = config.VOTING_THRESHOLD * 100
+                from config import VOTING_THRESHOLD
+                needed_pct = VOTING_THRESHOLD * 100
                 self.detect_listbox.insert("end", f"   ⏳ Need {needed_pct:.0f}% to confirm")
         else:
             self.detect_listbox.insert("end", "🗳️  Voting Window: Empty")
@@ -982,8 +996,15 @@ class DeviceControl(tk.Frame):
     
     def _update_detections_silence(self):
         """Update listbox when no meaningful audio detected"""
-        # Silently wait for audio - don't spam the console
-        pass
+        print("silence detected...")
+        if not self.classification_enabled:
+            return
+            
+        #timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        #self.detect_listbox.delete(0, tk.END)
+        #self.detect_listbox.insert("end", f"🕒 {timestamp} (10s interval)")
+        #self.detect_listbox.insert("end", "🔇 Low audio level...")
+        #self.detect_listbox.insert("end", "Listening for animal sounds...")
     
     def _update_detections_error(self, error_msg):
         """Update listbox when classification error occurs"""
