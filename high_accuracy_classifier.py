@@ -3,19 +3,19 @@ High Accuracy Animal Audio Classifier - CRNN Model Integration
 Integrates the trained CRNN model for real-time audio classification in the GUI
 """
 
-# import os
-# import sys
-# import numpy as np
-# import librosa
-# import tensorflow as tf
-# from tensorflow import keras
-# import json
-# from collections import deque
-# import warnings
-# warnings.filterwarnings('ignore')
+import os
+import sys
+import numpy as np
+import librosa
+import tensorflow as tf
+from tensorflow import keras
+import json
+from collections import deque
+import warnings
+warnings.filterwarnings('ignore')
 
-# # Import config from same directory
-# import config
+# Import config from same directory
+import config
 
 
 class HighAccuracyAnimalClassifier:
