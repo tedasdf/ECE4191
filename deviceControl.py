@@ -537,7 +537,7 @@ class DeviceControl(tk.Frame):
             
             if self.toggle_model:
                 results = self.yolo_model(frame, conf=0.5)
-                print(results)
+                print("results:", results)
 
             # Some basic image processing
             # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
