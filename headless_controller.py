@@ -36,7 +36,7 @@ class HeadlessController:
         self._poll_gamepad(hz=poll_hz)
         self._command_loop(hz=cmd_hz)
 
-    print("🎮 Headless Windows controller started")
+    print("🎮 Headless Windows controller began")
 
     def _poll_gamepad(self, hz=30):
         """Poll once, update states, and reschedule without blocking."""
