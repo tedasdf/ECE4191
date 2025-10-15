@@ -3,6 +3,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamError, M
 import aiohttp
 import queue
 import threading
+import multiprocessing
 
 class WebRTCStream:
     def __init__(self, link="192.168.77.1"):
@@ -12,7 +13,7 @@ class WebRTCStream:
         self.whep_answer: str = None
         self.buffer = queue.Queue(maxsize=3)  # buffer for video frames
         
-        self.thread_loop: asyncio.AbstractEventLoop = None
+        self.thread_loop: multiprocessing.Process = None
         self.start_event: asyncio.Event = None
         self.stop_event: asyncio.Event = None
         self.stream_connected: asyncio.Event = None
@@ -31,19 +32,25 @@ class WebRTCStream:
         return self.peer_connection
     
     def start_thread(self):
-        if self.thread_loop is None or not self.thread_loop.is_running():
-            self.thread_loop = asyncio.new_event_loop()
-            threading.Thread(target=lambda: self.thread_loop.run_forever(), daemon=True).start()
-            asyncio.run_coroutine_threadsafe(self._connection_loop(), self.thread_loop)
+        if self.thread_loop is None or not self.thread_loop.is_alive():
+            # self.thread_loop = asyncio.new_event_loop()
+            # threading.Thread(target=lambda: self.thread_loop.run_forever(), daemon=True).start()
+            # asyncio.run_coroutine_threadsafe(self._connection_loop(), self.thread_loop)
+            self.thread_loop = multiprocessing.Process(target=self._connection_loop_process, daemon=True)
+            self.thread_loop.start()
+            print("Video thread: Thread started")
 
     def close_thread(self):
-        if self.thread_loop is not None and self.thread_loop.is_running():
-            if self.stop_event is not None:
-                self.stop_event.set()
-            self.thread_loop.call_soon_threadsafe(self.thread_loop.stop)
+        if self.thread_loop is not None and self.thread_loop.is_alive():
+            # if self.stop_event is not None:
+            #     self.stop_event.set()
+            # self.thread_loop.call_soon_threadsafe(self.thread_loop.stop)
+            # self.thread_loop = None
+            # print("Video thread: Thread closed")
+            self.thread_loop.terminate()
+            self.thread_loop.join()
             self.thread_loop = None
-            print("Video thread: Thread closed")
-    
+
     async def _set_start_event(self):
         if self.start_event is not None:
             self.start_event.set()
