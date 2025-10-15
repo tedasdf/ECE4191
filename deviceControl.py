@@ -18,6 +18,8 @@ import sounddevice as sd
 import numpy as np
 import wave
 import requests
+import pyaudio
+import socket
 
 from headless_controller import HeadlessController
 
@@ -43,17 +45,24 @@ class DeviceControl(tk.Frame):
         self.buffer_seconds = 30  # how many seconds to keep for save past clip functionality
         self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)    # where frames for the past clip are stored
 
-        ## Audio Stream stuff
+        ## Audio Stream stuff - NETWORK AUDIO FROM RASPBERRY PI
         # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
         self.audio_sample_rate = 44100  
         self.audio_channels = 2
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
         
-        self.audio_stream_process = None
+        # Network audio settings (from Raspberry Pi)
+        self.AUDIO_IP = "0.0.0.0"  # Listen on all interfaces
+        self.AUDIO_PORT = 5004  # Port for audio stream from Pi
+        self.AUDIO_CHUNK_SIZE = 1024
         
-        # Start the audio capture in a background thread
-        threading.Thread(target=self._audio_capture_loop, daemon=True).start()
+        self.audio_stream_process = None
+        self.audio_socket = None
+        self.audio_capture_active = False
+        
+        # Audio will start when stream is started (not immediately)
+        # threading.Thread(target=self._audio_capture_loop, daemon=True).start()
 
         # Cooldown tracker
         self.last_key_time = 0
@@ -427,25 +436,86 @@ class DeviceControl(tk.Frame):
         out.release()
 
 
-    ### Audio capture rolling buffer
+    ### Audio capture rolling buffer - NETWORK AUDIO FROM RASPBERRY PI
     def _audio_capture_loop(self):
         """
-        Continuously capture audio into a rolling memory buffer.
+        Continuously capture audio from network stream (Raspberry Pi via UDP).
+        This receives audio packets via socket and stores them in a rolling buffer.
         """
-        def callback(indata, frames, time, status):
-            if status:
-                print(status)
-            # store a copy of the chunk in the rolling buffer
-            self.audio_buffer.append(indata.copy())
-
-        with sd.InputStream(
-            samplerate=self.audio_sample_rate,
-            channels=self.audio_channels,
-            blocksize=1024,  # chunk size
-            callback=callback
-        ):
-            while True:
-                sd.sleep(1000)  # keep stream alive
+        import socket
+        import pyaudio
+        
+        try:
+            # Create UDP socket to receive audio
+            self.audio_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.audio_socket.bind((self.AUDIO_IP, self.AUDIO_PORT))
+            print(f"Audio capture started on {self.AUDIO_IP}:{self.AUDIO_PORT}")
+            
+            # Initialize PyAudio for playback
+            p = pyaudio.PyAudio()
+            self.audio_playback_stream = p.open(
+                format=pyaudio.paInt16,
+                channels=self.audio_channels,
+                rate=self.audio_sample_rate,
+                output=True,
+                frames_per_buffer=self.AUDIO_CHUNK_SIZE
+            )
+            
+            self.audio_capture_active = True
+            
+            while self.audio_capture_active:
+                try:
+                    # Receive audio data via UDP (blocking call)
+                    data, _ = self.audio_socket.recvfrom(self.AUDIO_CHUNK_SIZE * 4)  # Receive up to 4KB
+                    
+                    if not data:
+                        continue
+                    
+                    # Convert bytes to numpy array for buffer storage
+                    # Assuming int16 PCM audio from Pi
+                    audio_chunk = np.frombuffer(data, dtype=np.int16)
+                    
+                    # Convert to float32 for processing (normalize to -1.0 to 1.0)
+                    audio_chunk_float = audio_chunk.astype(np.float32) / 32768.0
+                    
+                    # Reshape to (samples, channels) if stereo
+                    if self.audio_channels == 2 and len(audio_chunk_float) % 2 == 0:
+                        audio_chunk_float = audio_chunk_float.reshape(-1, 2)
+                    
+                    # Add to buffer for classification/recording
+                    self.audio_buffer.append(audio_chunk_float)
+                    
+                    # Playback audio with volume control
+                    volume = self.player.audio_get_volume() / 100.0 if hasattr(self, 'player') else 0.5
+                    adjusted_audio = (audio_chunk * volume).astype(np.int16)
+                    self.audio_playback_stream.write(adjusted_audio.tobytes())
+                    
+                except Exception as e:
+                    if self.audio_capture_active:
+                        print(f"Error receiving audio: {e}")
+                    time.sleep(0.01)
+                    
+        except Exception as e:
+            print(f"Error starting audio capture: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # Cleanup
+            if hasattr(self, 'audio_playback_stream'):
+                self.audio_playback_stream.stop_stream()
+                self.audio_playback_stream.close()
+            if self.audio_socket:
+                self.audio_socket.close()
+            print("Audio capture stopped")
+    
+    def _stop_audio_capture(self):
+        """Stop the network audio capture loop"""
+        self.audio_capture_active = False
+        if self.audio_socket:
+            try:
+                self.audio_socket.close()
+            except:
+                pass
 
 
     def save_last_audio(self):
@@ -562,9 +632,8 @@ class DeviceControl(tk.Frame):
 
         if not globals.streaming:
             # Start video stream if not streaming
-            # globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
-            self.play_audio_stream()
+            # self.play_audio_stream()  # VLC audio - replaced with network audio
             self.stream_toggle_button.config(text="Stop Stream")
             
             self.webrtc_client.set_stream_link(globals.video_url)
@@ -573,13 +642,16 @@ class DeviceControl(tk.Frame):
             self.webrtc_client.start_connection()
 
             if not self.webrtc_client.is_connected():
-                print("WebRTC Connection failed, restaring thread")
+                print("WebRTC Connection failed, restarting thread")
                 globals.streaming = False
                 self.stream_toggle_button.config(text="Start Stream")
                 self.webrtc_client.close_thread()
                 # self.webrtc_client.start_thread()
             else:
                 video_loop()
+                
+                # Start network audio capture from Raspberry Pi
+                threading.Thread(target=self._audio_capture_loop, daemon=True).start()
 
             # self.webrtc_loop = asyncio.new_event_loop()
             # threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
@@ -605,31 +677,13 @@ class DeviceControl(tk.Frame):
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
-            # globals.capture.release()
-            # print("Stopping WebRTC connection...")
-            # self.webrtc_close_future = asyncio.run_coroutine_threadsafe(
-            #     self.webrtc_client.close_connection(),
-            #     self.webrtc_loop
-            # )
-            # print("Waiting for WebRTC connection to close...")
-            # self.webrtc_close_future.result()  # wait for closure to complete
-            # print("Waiting for WebRTC connection thread to finish...")
-            # self.webrtc_connection_future.result()  # wait for connection to finish
-
-            # print("WebRTC connection closed.")
-            # if self.webrtc_loop:
-            #     self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
-            #     self.webrtc_loop = None
-            # print("WebRTC event loop stopped.")
-
+            
             self.webrtc_client.stop_connection()
-            # self.webrtc_client.close_thread()
             print("WebRTC connection closed.")
 
-            self.stop_audio_stream()
-            # audio_stream.stop_stream()
-            # audio_stream.close()
-            # p.termiate()
+            # Stop network audio capture
+            self._stop_audio_capture()
+            # self.stop_audio_stream()  # VLC audio - no longer used
 
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)
