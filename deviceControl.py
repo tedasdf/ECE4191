@@ -548,6 +548,7 @@ class DeviceControl(tk.Frame):
             if self.toggle_model:
                 annotated_frame = results[0].plot()
                 frame = annotated_frame
+                self.capture_photo("test")
 
             # Display the frame in the GUI
             img = Image.fromarray(frame)
