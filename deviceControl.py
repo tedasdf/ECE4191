@@ -103,7 +103,7 @@ class DeviceControl(tk.Frame):
 
         ########
         # --- WebRTC Client Setup ---
-        self.webrtc_client = WebRTCStream("http://192.168.212.90:8889/cam")
+        self.webrtc_client = WebRTCStream(globals.video_url)
         self.webrtc_client.start_connection()
 
         if self.webrtc_client.is_connected():
