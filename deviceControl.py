@@ -84,9 +84,6 @@ class DeviceControl(tk.Frame):
         # Voting system tracking
         self.detected_animals = {}  # Track which animals have been officially detected via voting
         self.last_announced_animal = None  # Track last announced detection to avoid spam
-        
-        # Initialize audio classifier in a separate thread to avoid blocking UI
-        # threading.Thread(target=self._init_audio_classifier, daemon=True).start()
 
         # Cooldown tracker
         self.last_key_time = 0
@@ -118,10 +115,10 @@ class DeviceControl(tk.Frame):
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
 
-        self.command_controller = HeadlessController(
-            mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
-            mqtt_port=int(globals.controller_IP.split(":")[1])
-            )
+        # self.command_controller = HeadlessController(
+        #     mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
+        #     mqtt_port=int(globals.controller_IP.split(":")[1])
+        #     )
 
         self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
         self.toggle_model = False
@@ -587,16 +584,16 @@ class DeviceControl(tk.Frame):
             self.webrtc_client.set_stream_link(globals.video_url)
             
             # self.webrtc_client.start_thread()
-            self.webrtc_client.start_connection()
+            # self.webrtc_client.start_connection()
 
-            if not self.webrtc_client.is_connected():
-                print("WebRTC Connection failed, restaring thread")
-                globals.streaming = False
-                self.stream_toggle_button.config(text="Start Stream")
-                self.webrtc_client.close_thread()
-                # self.webrtc_client.start_thread()
-            else:
-                video_loop()
+            # if not self.webrtc_client.is_connected():
+            #     print("WebRTC Connection failed, restaring thread")
+            #     globals.streaming = False
+            #     self.stream_toggle_button.config(text="Start Stream")
+            #     self.webrtc_client.close_thread()
+            #     # self.webrtc_client.start_thread()
+            # else:
+            video_loop()
 
             # create a socket and bind it to the audio stream ip and port
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -612,10 +609,10 @@ class DeviceControl(tk.Frame):
             # Stop video and audio stream if already streaming
             globals.streaming = False
 
-            self.webrtc_client.stop_connection()
-            self.webrtc_client.close_thread()
+            # self.webrtc_client.stop_connection()
+            # self.webrtc_client.close_thread()
 
-            print("WebRTC connection closed.")
+            # print("WebRTC connection closed.")
 
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)

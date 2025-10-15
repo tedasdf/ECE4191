@@ -50,8 +50,6 @@ class WildlifeBotApp(tk.Tk):
 
         tk.Label(top_frame, text="Wildlife Bot", font=("Arial", 18, "bold"), bg="white").pack(side="right", padx=15)
 
-
-
         # Container to hold all frames
         container = tk.Frame(self)
         container.pack(fill="both", expand=True)
