@@ -31,12 +31,16 @@ def webrtc_worker(link, frame_queue, start_event, stop_event, connected_event, m
                             frame = await track.recv()
                             arr = frame.to_ndarray(format="bgr24")
                             # maintain queue size
-                            if frame_queue.qsize() >= max_frames:
+                            try:
+                                # if queue full, remove one and retry
+                                frame_queue.put_nowait(arr)
+                            except:
                                 try:
-                                    frame_queue.get_nowait()
+                                    _ = frame_queue.get_nowait()  # drop oldest
+                                    frame_queue.put_nowait(arr)
                                 except:
-                                    pass
-                            frame_queue.put_nowait(arr)
+                                    pass  # if even that fails, skip frame
+
                     except MediaStreamError:
                         pass
 
