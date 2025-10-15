@@ -87,6 +87,31 @@ class DeviceControl(tk.Frame):
         self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
         self.toggle_model = False
 
+        ## Audio Classification Setup
+        # Initialize the audio classifier
+        self.audio_classifier = None
+        self.classification_enabled = False
+        self.classification_thread = None
+        
+        # Voting system tracking
+        self.detected_animals = {}  # Track which animals have been officially detected via voting
+        self.last_announced_animal = None  # Track last announced detection to avoid spam
+        
+        # Initialize logs directory for audio classification
+        self.logs_dir = os.path.join(os.getcwd(), "logs", "audio")
+        os.makedirs(self.logs_dir, exist_ok=True)
+        # GUI-side log file for top-1 occurrences
+        self.gui_log_path = os.path.join(self.logs_dir, "gui_audio_top1.log")
+        if not os.path.exists(self.gui_log_path):
+            try:
+                with open(self.gui_log_path, "a") as f:
+                    f.write(f"# GUI Audio Top-1 Log - started {datetime.datetime.now().isoformat()}\n")
+            except Exception:
+                pass
+        
+        # Initialize audio classifier in a separate thread to avoid blocking UI
+        threading.Thread(target=self._init_audio_classifier, daemon=True).start()
+
         # self.webrtc_client.start_thread()
         self.layout()
 
@@ -124,17 +149,26 @@ class DeviceControl(tk.Frame):
         detect_scrollbar = tk.Scrollbar(detect_frame)
         detect_scrollbar.pack(side="right", fill="y")
 
-        detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
-        detect_listbox.pack(side="left", fill="both", expand=True)
+        self.detect_listbox = tk.Listbox(detect_frame, yscrollcommand=detect_scrollbar.set)
+        self.detect_listbox.pack(side="left", fill="both", expand=True)
 
-        detect_scrollbar.config(command=detect_listbox.yview)
+        detect_scrollbar.config(command=self.detect_listbox.yview)
 
-        creatures = [
-            "Platypus", "Lizard", "Crocodile", "Dove",
-            "Lizard", "Crocodile", "Dove", "Lizard", "Crocodile", "Dove"
-        ]
-        for i in creatures:
-            detect_listbox.insert("end", f"{i}")
+        # Add initial message while audio classifier loads
+        self.detect_listbox.insert("end", "Audio classifier loading...")
+        self.detect_listbox.insert("end", "Please wait...")
+        
+        # Audio classification toggle button
+        audio_controls_frame = tk.Frame(detect_frame)
+        audio_controls_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+        
+        self.audio_classification_button = tk.Button(
+            audio_controls_frame, 
+            text="Start Audio Detection", 
+            command=self.toggle_audio_classification,
+            state=tk.DISABLED  # Disabled until classifier loads
+        )
+        self.audio_classification_button.pack(side="left", padx=5)
 
         # Camera Controls
         cam_frame = tk.LabelFrame(right_frame, text="Camera Controls")
@@ -717,3 +751,261 @@ class DeviceControl(tk.Frame):
         
         if stateChange:
             print(e.keysym, 'pressed')
+
+    ## Audio Classification Methods ##
+    
+    def _init_audio_classifier(self):
+        """Initialize the audio classifier in a background thread"""
+        try:
+            print("Initializing audio classifier...")
+            
+            # Lazy import - only import when actually initializing the classifier
+            # This prevents TensorFlow from loading at GUI startup which can interfere with WebRTC
+            from high_accuracy_classifier import HighAccuracyAnimalClassifier
+            
+            # Check if model files exist
+            model_path = os.path.join("models", "animal_classifier_best.h5")
+            if not os.path.exists(model_path):
+                print(f"Warning: Model file '{model_path}' not found!")
+                self.after(0, self._update_classifier_status, "Model file not found")
+                return
+            
+            # Initialize the high accuracy classifier
+            self.audio_classifier = HighAccuracyAnimalClassifier()
+            self.after(0, self._update_classifier_status, "CRNN classifier ready ✅")
+            print("CRNN audio classifier initialized successfully!")
+            
+        except Exception as e:
+            print(f"Error initializing audio classifier: {e}")
+            import traceback
+            traceback.print_exc()
+            self.after(0, self._update_classifier_status, f"Error: {str(e)}")
+    
+    def _update_classifier_status(self, message):
+        """Update the UI with classifier status - called from main thread"""
+        self.detect_listbox.delete(0, tk.END)
+        self.detect_listbox.insert("end", message)
+        
+        if self.audio_classifier is not None:
+            self.audio_classification_button.config(state=tk.NORMAL)
+    
+    def toggle_audio_classification(self):
+        """Toggle audio classification on/off"""
+        if self.audio_classifier is None:
+            self.detect_listbox.delete(0, tk.END)
+            self.detect_listbox.insert("end", "Audio classifier not ready")
+            return
+        
+        if not self.classification_enabled:
+            # Start classification
+            self.classification_enabled = True
+            self.audio_classification_button.config(text="Stop Audio Detection", bg="red")
+            
+            # Reset voting system and detection tracking
+            self.detected_animals = {}
+            self.last_announced_animal = None
+            if self.audio_classifier:
+                self.audio_classifier.reset_voting_history()
+            
+            # Start classification thread
+            self.classification_thread = threading.Thread(target=self._classification_loop, daemon=True)
+            self.classification_thread.start()
+            
+            self.detect_listbox.delete(0, tk.END)
+            self.detect_listbox.insert("end", "�� Audio detection started!")
+            self.detect_listbox.insert("end", "   Analyzing every 3 seconds...")
+            self.detect_listbox.insert("end", "   Voting window: 30 seconds (10 predictions)")
+            self.detect_listbox.insert("end", "   Detection requires 70% vote agreement")
+            print("CRNN audio classification started (3-second intervals with voting)")
+        else:
+            # Stop classification
+            self.classification_enabled = False
+            self.audio_classification_button.config(text="Start Audio Detection", bg="SystemButtonFace")
+            
+            self.detect_listbox.delete(0, tk.END)
+            self.detect_listbox.insert("end", "🛑 Audio detection stopped")
+            
+            # Show final summary if any detections
+            if self.detected_animals:
+                self.detect_listbox.insert("end", "")
+                self.detect_listbox.insert("end", "📊 Session Summary:")
+                sorted_detections = sorted(self.detected_animals.items(), key=lambda x: x[1], reverse=True)
+                for animal, count in sorted_detections:
+                    self.detect_listbox.insert("end", f"   {animal}: {count} confirmed detections")
+
+            print("Audio classification stopped")
+    
+    def _classification_loop(self):
+        """Background thread for continuous audio classification using CRNN model with voting"""
+        while self.classification_enabled and self.audio_classifier is not None:
+            try:
+                # Get audio data from buffer
+                if len(self.audio_buffer) > 0:
+                    # Get recent audio from buffer (last ~3 seconds for one prediction)
+                    # GUI audio is 44100 Hz, we need ~3 seconds = 132300 samples
+                    samples_needed = int(3.0 * self.audio_sample_rate)  # 3 seconds at 44100 Hz
+                    
+                    # Convert buffer to audio array
+                    raw_audio_data = b"".join(self.audio_buffer)
+                    audio_data = np.frombuffer(raw_audio_data, dtype=np.float32)
+                    
+                    # Take the most recent samples
+                    if len(audio_data) > samples_needed:
+                        audio_data = audio_data[-samples_needed:]
+                    
+                    # Ensure it's 1D (mono) - convert stereo to mono by averaging channels
+                    if self.audio_channels == 2:
+                        # Reshape to (samples, 2) and take mean across channels
+                        audio_data = audio_data.reshape(-1, 2).mean(axis=1)
+                    else:
+                        audio_data = audio_data.flatten()
+                    
+                    # Check if audio has meaningful content (not silence)
+                    audio_magnitude = np.max(np.abs(audio_data))
+                    
+                    if audio_magnitude > 0.01:  # Threshold for float32 audio (adjust as needed)
+                        # Get predictions from CRNN model WITH VOTING
+                        # Pass source sample rate so model can resample properly
+                        result = self.audio_classifier.predict_with_voting(
+                            audio_data, 
+                            source_sample_rate=self.audio_sample_rate
+                        )
+                        
+                        # Update UI from main thread
+                        self.after(0, self._update_detections, result)
+                    else:
+                        # No meaningful audio detected
+                        self.after(0, self._update_detections_silence)
+                
+                # Wait before next classification (3 seconds to match segment duration)
+                time.sleep(3.0)  # 3-second intervals to match model training
+                
+            except Exception as e:
+                print(f"Error in classification loop: {e}")
+                import traceback
+                traceback.print_exc()
+                self.after(0, self._update_detections_error, str(e))
+                time.sleep(3.0)
+    
+    def _update_detections(self, result):
+        """
+        Update the creatures detected listbox with voting-based detections
+        
+        Args:
+            result: Dictionary with 'current' predictions and 'voting' results
+        """
+        if not self.classification_enabled:
+            return
+        
+        # Extract current predictions and voting result
+        current_predictions = result.get('current', [])
+        voting_info = result.get('voting', {})
+        
+        # Get voting decision
+        voted_animal = voting_info.get('prediction')
+        vote_pct = voting_info.get('vote_percentage', 0.0)
+        avg_conf = voting_info.get('avg_confidence', 0.0)
+        is_confident = voting_info.get('is_confident', False)
+        
+        # Clear current list
+        self.detect_listbox.delete(0, tk.END)
+        
+        # Add timestamp
+        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        self.detect_listbox.insert("end", f"🕒 {timestamp} - Audio Analysis (3s):")
+        self.detect_listbox.insert("end", "=" * 45)
+        
+        # Show top 3 current predictions (real-time, before voting)
+        self.detect_listbox.insert("end", "📊 Current Prediction:")
+        for i, (animal, confidence) in enumerate(current_predictions[:3], 1):
+            confidence_percent = confidence * 100
+            emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
+            display_text = f"{emoji} #{i}: {animal:<15} ({confidence_percent:5.1f}%)"
+            self.detect_listbox.insert("end", display_text)
+        
+        self.detect_listbox.insert("end", "=" * 45)
+        
+        # Show voting status
+        if voted_animal:
+            self.detect_listbox.insert("end", "🗳️  Voting Window (30s):")
+            
+            # Show vote percentage as progress bar
+            bar_length = 20
+            filled = int(bar_length * vote_pct)
+            bar = "█" * filled + "░" * (bar_length - filled)
+            self.detect_listbox.insert("end", f"   {voted_animal}:")
+            self.detect_listbox.insert("end", f"   [{bar}] {vote_pct*100:.0f}%")
+            self.detect_listbox.insert("end", f"   Confidence: {avg_conf*100:.1f}%")
+            
+            # Check if this is a CONFIRMED DETECTION
+            if is_confident:
+                # Official detection - animal has passed voting threshold!
+                self.detect_listbox.insert("end", "")
+                self.detect_listbox.insert("end", "✅ ANIMAL DETECTED! ✅")
+                self.detect_listbox.insert("end", f"🎯 {voted_animal}")
+                self.detect_listbox.insert("end", "")
+                
+                # Track detection
+                if voted_animal not in self.detected_animals:
+                    self.detected_animals[voted_animal] = 0
+                self.detected_animals[voted_animal] += 1
+                
+                # Announce new detection (avoid spam)
+                if self.last_announced_animal != voted_animal:
+                    print(f"\n{'='*60}")
+                    print(f"🚨 NEW ANIMAL DETECTED: {voted_animal} 🚨")
+                    print(f"   Vote: {vote_pct*100:.0f}% | Confidence: {avg_conf*100:.1f}%")
+                    print(f"{'='*60}\n")
+                    self.last_announced_animal = voted_animal
+                    
+                    # Log to file
+                    try:
+                        if hasattr(self, 'gui_log_path') and self.gui_log_path:
+                            with open(self.gui_log_path, "a") as f:
+                                f.write(f"{datetime.datetime.now().isoformat()} - DETECTION: {voted_animal} (Vote: {vote_pct*100:.0f}%, Conf: {avg_conf*100:.1f}%)\n")
+                    except Exception:
+                        pass
+            else:
+                # Not enough votes yet
+                import config
+                needed_pct = config.VOTING_THRESHOLD * 100
+                self.detect_listbox.insert("end", f"   ⏳ Need {needed_pct:.0f}% to confirm")
+        else:
+            self.detect_listbox.insert("end", "🗳️  Voting Window: Empty")
+            self.detect_listbox.insert("end", "   Waiting for predictions...")
+        
+        self.detect_listbox.insert("end", "=" * 45)
+        
+        # Show detection summary if any animals have been detected
+        if self.detected_animals:
+            self.detect_listbox.insert("end", "📋 Confirmed Detections:")
+            sorted_detections = sorted(self.detected_animals.items(), key=lambda x: x[1], reverse=True)
+            for animal, count in sorted_detections[:5]:  # Show top 5
+                self.detect_listbox.insert("end", f"   ✓ {animal}: {count}x")
+        
+        # Auto-scroll to bottom
+        self.detect_listbox.see(tk.END)
+        
+        # Console log (simplified)
+        if is_confident:
+            log_msg = f"DETECTED: {voted_animal} (Vote: {vote_pct*100:.0f}%, Conf: {avg_conf*100:.1f}%)"
+        else:
+            top = current_predictions[0] if current_predictions else ("None", 0.0)
+            log_msg = f"Current: {top[0]} ({top[1]*100:.1f}%) | Voting: {voted_animal or 'None'} ({vote_pct*100:.0f}%)"
+        print(f"Audio: {log_msg}")
+    
+    def _update_detections_silence(self):
+        """Update listbox when no meaningful audio detected"""
+        # Silently wait for audio - don't spam the console
+        pass
+    
+    def _update_detections_error(self, error_msg):
+        """Update listbox when classification error occurs"""
+        if not self.classification_enabled:
+            return
+            
+        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        self.detect_listbox.delete(0, tk.END)
+        self.detect_listbox.insert("end", f"🕒 {timestamp} (3s interval)")
+        self.detect_listbox.insert("end", f"❌ Error: {error_msg}")
+        self.detect_listbox.insert("end", "Retrying in 3 seconds...")
