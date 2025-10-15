@@ -11,11 +11,8 @@ class HeadlessController:
         # Optional: replace this with your real server manager
         from tiality_server import TialityServerManager
         self.server_manager = TialityServerManager(
-            grpc_port=50051,
             mqtt_port=mqtt_port,
-            mqtt_broker_host_ip=mqtt_broker_host_ip,
-            decode_video_func=None,
-            num_decode_video_workers=0
+            mqtt_broker_host_ip=mqtt_broker_host_ip
         )
         self.server_manager.start_servers()
 

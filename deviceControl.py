@@ -21,16 +21,14 @@ import requests
 
 from headless_controller import HeadlessController
 
-pan_speed_percent = 0  # start at middle
+
+pan_angle = 45  # start at middle
 tilt_angle = 0
+crane_angle = 0
 
 class DeviceControl(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-
-        pan_angle = 45  # start at middle
-        tilt_angle = 0
-        crane_angle = 0
 
         ## Filenames
         self.recorded_audio_file = f"media/recorded_audio.ogg"
@@ -714,9 +712,3 @@ class DeviceControl(tk.Frame):
         
         if stateChange:
             print(e.keysym, 'pressed')
-
-
-
-
-
-    
