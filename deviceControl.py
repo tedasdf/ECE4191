@@ -107,10 +107,10 @@ class DeviceControl(tk.Frame):
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
 
-        # self.command_controller = HeadlessController(
-        #     mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
-        #     mqtt_port=int(globals.controller_IP.split(":")[1])
-        #     )
+        self.command_controller = HeadlessController(
+            mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
+            mqtt_port=int(globals.controller_IP.split(":")[1])
+            )
 
         self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
         self.toggle_model = False
@@ -662,19 +662,19 @@ class DeviceControl(tk.Frame):
             self.stream_toggle_button.config(text="Stop Stream")
             
             # uncomment below
-            # self.webrtc_client.set_stream_link(globals.video_url)
+            self.webrtc_client.set_stream_link(globals.video_url)
             
-            # # self.webrtc_client.start_thread()
-            # self.webrtc_client.start_connection()
+            # self.webrtc_client.start_thread()
+            self.webrtc_client.start_connection()
 
-            # if not self.webrtc_client.is_connected():
-            #     print("WebRTC Connection failed, restaring thread")
-            #     globals.streaming = False
-            #     self.stream_toggle_button.config(text="Start Stream")
-            #     self.webrtc_client.close_thread()
-            #     # self.webrtc_client.start_thread()
-            # else:
-            #     video_loop()
+            if not self.webrtc_client.is_connected():
+                print("WebRTC Connection failed, restaring thread")
+                globals.streaming = False
+                self.stream_toggle_button.config(text="Start Stream")
+                self.webrtc_client.close_thread()
+                # self.webrtc_client.start_thread()
+            else:
+                video_loop()
 
             # uncomment above
 
