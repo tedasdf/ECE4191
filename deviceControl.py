@@ -18,8 +18,6 @@ import sounddevice as sd
 import numpy as np
 import wave
 import requests
-import pyaudio
-import socket
 
 from headless_controller import HeadlessController
 
@@ -39,31 +37,54 @@ class DeviceControl(tk.Frame):
         self.recorded_audio_file = f"media/recorded_audio.ogg"
         self.buffer_audio_clip_file = f"media/buffer_audio.wav" # filename for the audio clip saved by the audio buffer
         self.recorded_video_file = f"media/recorded_video.mp4" # filename for the manually recorded video clip
+        ## Filenames
+        ## make directories for media if they don't already exist
+        os.makedirs("media", exist_ok=True)
+        os.makedirs("media/audio_detections", exist_ok=True)
+        os.makedirs("media/recordings/audio", exist_ok=True)
+        os.makedirs("media/recordings/video", exist_ok=True)
+        os.makedirs("media/visual_detections", exist_ok=True)
+
 
         ## Video stream stuff
         self.fps = 24   # FPS of the stream
         self.buffer_seconds = 30  # how many seconds to keep for save past clip functionality
         self.frame_buffer = deque(maxlen=self.fps * self.buffer_seconds)    # where frames for the past clip are stored
 
-        ## Audio Stream stuff - NETWORK AUDIO FROM RASPBERRY PI
+        ## Audio Stream stuff
+        # audio stream settings
+        self.AUDIO_IP = "0.0.0.0"
+        self.AUDIO_PORT = 5004
+        self.AUDIO_CHUNK_SIZE = 1024
+        self.AUDIO_FORMAT = pyaudio.paInt16
+        self.AUDIO_CHANNELS = 1
+        self.AUDIO_RATE = 44100
+
+        self.volume_level = 1.0
         # audio buffer 
         self.audio_buffer_seconds = 30  # how many seconds of audio to keep
         self.audio_sample_rate = 44100  
         self.audio_channels = 2
         self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.audio_sample_rate // 1024)  # 1024-frame chunks
         
-        # Network audio settings (from Raspberry Pi)
-        self.AUDIO_IP = "0.0.0.0"  # Listen on all interfaces
-        self.AUDIO_PORT = 5004  # Port for audio stream from Pi
-        self.AUDIO_CHUNK_SIZE = 1024
-        
         self.audio_stream_process = None
-        self.audio_socket = None
-        self.audio_capture_active = False
         
-        # Audio will start when stream is started (not immediately)
-        # threading.Thread(target=self._audio_capture_loop, daemon=True).start()
+        # Start the audio capture in a background thread
+        self.audio_buffer = deque(maxlen=self.audio_buffer_seconds * self.AUDIO_RATE // (self.AUDIO_CHUNK_SIZE*4))  # 1024-frame chunks
+        
+        # an array to hold the audio recording data
+        self.audio_recording = []
 
+        ## Audio Classification Setup
+        # Initialize the audio classifier
+        self.audio_classifier = None
+        self.classification_enabled = False
+        self.classification_thread = None
+        
+        # Voting system tracking
+        self.detected_animals = {}  # Track which animals have been officially detected via voting
+        self.last_announced_animal = None  # Track last announced detection to avoid spam
+        
         # Cooldown tracker
         self.last_key_time = 0
         self.key_cooldown = 0.1  # 100 ms between keypress handling
@@ -189,9 +210,6 @@ class DeviceControl(tk.Frame):
         cam_frame.columnconfigure(1, weight=1) 
         cam_frame.columnconfigure(2, weight=1)
 
-        # tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
-        # ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
-
         tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
 
@@ -311,10 +329,6 @@ class DeviceControl(tk.Frame):
         self.volume_slider.pack(pady=2, fill="x", expand=True)
         self.volume_slider.set(50)  # default volume
 
-        # VLC player instance
-        self.instance = vlc.Instance("--quiet --network-caching=0")
-        self.player = self.instance.media_player_new()
-
 
     def _name_output_file(self, str):
         """
@@ -330,24 +344,6 @@ class DeviceControl(tk.Frame):
         """
         self.player.audio_set_volume(int(value))
 
-
-    ### audio stream control functions
-    def play_audio_stream(self):
-        """
-        Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
-        """
-        print("audio stream started")
-        media = self.instance.media_new(globals.audio_url)
-        self.player.set_media(media)
-        self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
-        self.player.play()
-
-
-    def stop_audio_stream(self):
-        """
-        Stops the audio stream that is playing
-        """
-        self.player.stop()
 
     ### Video capture rolling buffer 
     def save_last_video(self):
@@ -436,112 +432,46 @@ class DeviceControl(tk.Frame):
         out.release()
 
 
-    ### Audio capture rolling buffer - NETWORK AUDIO FROM RASPBERRY PI
-    def _audio_capture_loop(self):
-        """
-        Continuously capture audio from network stream (Raspberry Pi via UDP).
-        This receives audio packets via socket and stores them in a rolling buffer.
-        """
-        import socket
-        import pyaudio
-        
-        try:
-            # Create UDP socket to receive audio
-            self.audio_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.audio_socket.bind((self.AUDIO_IP, self.AUDIO_PORT))
-            print(f"Audio capture started on {self.AUDIO_IP}:{self.AUDIO_PORT}")
-            
-            # Initialize PyAudio for playback
-            p = pyaudio.PyAudio()
-            self.audio_playback_stream = p.open(
-                format=pyaudio.paInt16,
-                channels=self.audio_channels,
-                rate=self.audio_sample_rate,
-                output=True,
-                frames_per_buffer=self.AUDIO_CHUNK_SIZE
-            )
-            
-            self.audio_capture_active = True
-            
-            while self.audio_capture_active:
-                try:
-                    # Receive audio data via UDP (blocking call)
-                    data, _ = self.audio_socket.recvfrom(self.AUDIO_CHUNK_SIZE * 4)  # Receive up to 4KB
-                    
-                    if not data:
-                        continue
-                    
-                    # Convert bytes to numpy array for buffer storage
-                    # Assuming int16 PCM audio from Pi
-                    audio_chunk = np.frombuffer(data, dtype=np.int16)
-                    
-                    # Convert to float32 for processing (normalize to -1.0 to 1.0)
-                    audio_chunk_float = audio_chunk.astype(np.float32) / 32768.0
-                    
-                    # Reshape to (samples, channels) if stereo
-                    if self.audio_channels == 2 and len(audio_chunk_float) % 2 == 0:
-                        audio_chunk_float = audio_chunk_float.reshape(-1, 2)
-                    
-                    # Add to buffer for classification/recording
-                    self.audio_buffer.append(audio_chunk_float)
-                    
-                    # Playback audio with volume control
-                    volume = self.player.audio_get_volume() / 100.0 if hasattr(self, 'player') else 0.5
-                    adjusted_audio = (audio_chunk * volume).astype(np.int16)
-                    self.audio_playback_stream.write(adjusted_audio.tobytes())
-                    
-                except Exception as e:
-                    if self.audio_capture_active:
-                        print(f"Error receiving audio: {e}")
-                    time.sleep(0.01)
-                    
-        except Exception as e:
-            print(f"Error starting audio capture: {e}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            # Cleanup
-            if hasattr(self, 'audio_playback_stream'):
-                self.audio_playback_stream.stop_stream()
-                self.audio_playback_stream.close()
-            if self.audio_socket:
-                self.audio_socket.close()
-            print("Audio capture stopped")
-    
-    def _stop_audio_capture(self):
-        """Stop the network audio capture loop"""
-        self.audio_capture_active = False
-        if self.audio_socket:
-            try:
-                self.audio_socket.close()
-            except:
-                pass
-
-
-    def save_last_audio(self):
+    def save_last_audio(self, N = 30, folder = None, filename = None):
         """
         Save the last N seconds of audio from the buffer to a WAV file.
         """
+
+        if N > 30 or N < 0:
+            print("Invalid N, returning to default")
+            N = 30
+        
+        if not folder:
+            folder = 'recordings/audio/'
+
+        if not filename:
+            filename = 'buffer_audio'
+
         if not self.audio_buffer:
             print("No audio in buffer!")
             return
 
         # Concatenate all buffered chunks
-        data = np.concatenate(list(self.audio_buffer), axis=0)
+        slice_index = int(len(self.audio_buffer) * (N/30))
+        # print("buffer slices:", self.audio_buffer[:slice_index])
+        data = b"".join(list(self.audio_buffer)[:slice_index])
+        pcm_data = np.frombuffer(data, dtype=np.int16)
 
-        # Convert float32 (-1.0 to 1.0) to 16-bit PCM
-        pcm_data = (data * 32767).astype(np.int16)
+        write_file = 'media/' + folder + self._name_output_file(filename+'_') + ".wav"
 
-        write_file = self._name_output_file(self.buffer_audio_clip_file)
+        # create folder if it doesn't exist
+        os.makedirs('media/' + folder, exist_ok=True)
 
         # Write to WAV file
         with wave.open(write_file, "wb") as wf:
-            wf.setnchannels(self.audio_channels)
+            wf.setnchannels(self.AUDIO_CHANNELS)
             wf.setsampwidth(2)  # 16-bit
-            wf.setframerate(self.audio_sample_rate)
+            wf.setframerate(self.AUDIO_RATE)
             wf.writeframes(pcm_data.tobytes())
 
-        print(f"Saved last {self.audio_buffer_seconds} seconds of audio to {write_file}")
+        print(f"Saved last {N} seconds of audio to {write_file}")
+
+
 
     def stream_toggle(self):
 
@@ -586,8 +516,6 @@ class DeviceControl(tk.Frame):
 
 
             # Some basic image processing
-            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            #frame = cv2.resize(frame, (600, 400))  # fit the label size
             if self.awb_enabled.get():
                 frame = gray_world_awb(frame)
 
@@ -604,36 +532,33 @@ class DeviceControl(tk.Frame):
             # Schedule the next frame update
             self.video_label.after(20, video_loop)  # schedule next frame
             self.frame_buffer.append(frame.copy()) # add recording to video buffer
-            # else:
-            #     if globals.streaming:
-            #         globals.streaming = False
-            #         self.stream_toggle_button.config(text="Start Stream")
-            #         self.video_label.config(image=self.stream_standby_photo)
-            #         # audio_stream.stop_stream()
-            #         # audio_stream.close()
-            #         # p.termiate()
-            #         messagebox.showerror("Error", "Video Disconnected")
-            #         return
+        def _audio_stream_loop(sock):
+            # Empty the 30 second buffer
+            self.audio_buffer.clear()
+            while True:
+                data, _ = sock.recvfrom(self.AUDIO_CHUNK_SIZE * 32)  # 2 bytes per sample
 
-        # def audio_loop():
-        #     audio_data = self.audio_stream_process.stdout.read(4096)
-            
-        #     if audio_data:
-        #         audio_stream.write(audio_data)
-        #         self.after(15, audio_loop)
-        #     else:
-        #         if globals.streaming:
-        #             globals.streaming = False
-        #             self.stream_toggle_button.config(text="Start Stream")
-        #             self.video_label.config(image=self.stream_standby_photo)
-        #             globals.capture.release()
-        #             messagebox.showerror("Error", "Audio Disconnected")
-        #             return
+                # add audio chunk to 30 second buffer
+                self.audio_buffer.append(data)
+
+                # If recording, add the data to the recording
+                if self.recording:
+                    self.audio_recording.append(data)
+
+                # Playback with volume adjustment
+                audio_bytes = np.frombuffer(data, dtype=np.int16)
+                adjusted = (audio_bytes * self.volume_level).astype(np.int16)
+                self.audio_stream.write(adjusted.tobytes())
+                # self.audio_stream.write(data)
+
+                if not globals.streaming:
+                    return
 
         if not globals.streaming:
             # Start video stream if not streaming
+            # globals.capture = cv2.VideoCapture(globals.video_url)
             globals.streaming = True
-            # self.play_audio_stream()  # VLC audio - replaced with network audio
+            # self.play_audio_stream()
             self.stream_toggle_button.config(text="Stop Stream")
             
             self.webrtc_client.set_stream_link(globals.video_url)
@@ -642,48 +567,35 @@ class DeviceControl(tk.Frame):
             self.webrtc_client.start_connection()
 
             if not self.webrtc_client.is_connected():
-                print("WebRTC Connection failed, restarting thread")
+                print("WebRTC Connection failed, restaring thread")
                 globals.streaming = False
                 self.stream_toggle_button.config(text="Start Stream")
                 self.webrtc_client.close_thread()
                 # self.webrtc_client.start_thread()
             else:
                 video_loop()
-                
-                # Start network audio capture from Raspberry Pi
-                threading.Thread(target=self._audio_capture_loop, daemon=True).start()
 
-            # self.webrtc_loop = asyncio.new_event_loop()
-            # threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
-            # self.webrtc_connection_future = asyncio.run_coroutine_threadsafe(
-            #     self.webrtc_client.connect_to_server(
-            #         vid_label=self.video_label,
-            #         frame_buffer=self.frame_buffer
-            #     ),
-            #     self.webrtc_loop
-            # )
 
-            # Now start audio
-            # self.audio_stream_process = subprocess.Popen(
-            #     ["ffmpeg", "-i", globals.audio_url, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "-"],
-            #     stdout=subprocess.PIPE,
-            #     stderr=subprocess.DEVNULL            
-            # )
+            # create a socket and bind it to the audio stream ip and port
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.bind((self.AUDIO_IP, self.AUDIO_PORT))
+            
+            # Initialize PyAudio
+            p = pyaudio.PyAudio()
+            self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
+            threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start() #disable audio stream temporarily
 
-            # p = pyaudio.PyAudio()
-            # audio_stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, output=True)
-            # threading.Thread(target=audio_loop, daemon=True).start()
 
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
-            
+
+
             self.webrtc_client.stop_connection()
+            # self.webrtc_client.close_thread()
             print("WebRTC connection closed.")
 
-            # Stop network audio capture
-            self._stop_audio_capture()
-            # self.stop_audio_stream()  # VLC audio - no longer used
+
 
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)
@@ -869,7 +781,7 @@ class DeviceControl(tk.Frame):
             self.classification_thread.start()
             
             self.detect_listbox.delete(0, tk.END)
-            self.detect_listbox.insert("end", "�� Audio detection started!")
+            self.detect_listbox.insert("end", "   Audio detection started!")
             self.detect_listbox.insert("end", "   Analyzing every 3 seconds...")
             self.detect_listbox.insert("end", "   Voting window: 30 seconds (10 predictions)")
             self.detect_listbox.insert("end", "   Detection requires 70% vote agreement")
