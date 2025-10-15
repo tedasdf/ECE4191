@@ -358,6 +358,33 @@ class DeviceControl(tk.Frame):
         print(f"Saved last 30 seconds of video to {output_file}")
         return 1
     
+
+    def capture_photo(self, animal_name):
+        if not self.frame_buffer:
+            print("No frames in buffer!")
+            return 0
+
+        # Get the most recent frame (last element in the buffer)
+        last_frame = self.frame_buffer[-1]
+
+        # Create the output directory if it doesn't exist
+        output_dir = os.path.join("media", "visual_detections", animal_name)
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Build the filename
+        filename = self._name_output_file(animal_name + "_") + ".jpg"
+        write_path = os.path.join(output_dir, filename)
+
+        # Save the frame as a JPEG
+        success = cv2.imwrite(write_path, last_frame)
+
+        if success:
+            print(f"Saved photo: {write_path}")
+            return write_path
+        else:
+            print("Failed to save photo.")
+            return 0
+    
     
     ### Live Recording Functions
     def toggle_recording(self):
@@ -428,27 +455,6 @@ class DeviceControl(tk.Frame):
         for f in self.recorded_frames:
             out.write(cv2.cvtColor(f, cv2.COLOR_BGR2RGB))
         out.release()
-
-
-    ### Audio capture rolling buffer
-    # def _audio_capture_loop(self):
-    #     """
-    #     Continuously capture audio into a rolling memory buffer.
-    #     """
-    #     def callback(indata, frames, time, status):
-    #         if status:
-    #             print(status)
-    #         # store a copy of the chunk in the rolling buffer
-    #         self.audio_buffer.append(indata.copy())
-
-    #     with sd.InputStream(
-    #         samplerate=self.audio_sample_rate,
-    #         channels=self.audio_channels,
-    #         blocksize=1024,  # chunk size
-    #         callback=callback
-    #     ):
-    #         while True:
-    #             sd.sleep(1000)  # keep stream alive
 
 
     def save_last_audio(self, N = 30, folder = None, filename = None):
@@ -939,6 +945,11 @@ class DeviceControl(tk.Frame):
                 if voted_animal not in self.detected_animals:
                     self.detected_animals[voted_animal] = 0
                 self.detected_animals[voted_animal] += 1
+
+                # save recording of animal
+                if voted_animal != "Background":
+                    self.save_last_audio(N = 15, folder = f"audio_detections/{voted_animal}/", filename = voted_animal)
+                
                 
                 # Announce new detection (avoid spam)
                 if self.last_announced_animal != voted_animal:
