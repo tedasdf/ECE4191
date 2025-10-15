@@ -21,6 +21,9 @@ import requests
 
 from headless_controller import HeadlessController
 
+from high_accuracy_classifier import HighAccuracyAnimalClassifier
+import socket
+import pyaudio
 
 pan_angle = 45  # start at middle
 tilt_angle = 0
