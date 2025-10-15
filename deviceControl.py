@@ -11,7 +11,7 @@ import time
 import datetime
 from collections import deque
 
-from webRTC import WebRTCStream
+from webRTCmultiporcessing import WebRTCStream
 from ultralytics import YOLO
 
 import sounddevice as sd
@@ -21,16 +21,14 @@ import requests
 
 from headless_controller import HeadlessController
 
-pan_speed_percent = 0  # start at middle
+
+pan_angle = 45  # start at middle
 tilt_angle = 0
+crane_angle = 0
 
 class DeviceControl(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-
-        pan_angle = 45  # start at middle
-        tilt_angle = 0
-        crane_angle = 0
 
         ## Filenames
         self.recorded_audio_file = f"media/recorded_audio.ogg"
@@ -71,7 +69,12 @@ class DeviceControl(tk.Frame):
         self.awb_enabled = tk.BooleanVar(value=False)
 
         ########
-        self.webrtc_client = WebRTCStream("http://192.168.0.236:8889/thunderbolt")
+        self.webrtc_client = WebRTCStream("http://192.168.212.90:8889/cam")
+        # stream.start_connection()
+
+        # if stream.is_connected():
+        #     print("Connected!")
+
         self.webrtc_loop = None
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
@@ -84,7 +87,7 @@ class DeviceControl(tk.Frame):
         self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
         self.toggle_model = False
 
-        self.webrtc_client.start_thread()
+        # self.webrtc_client.start_thread()
         self.layout()
 
 
@@ -105,7 +108,7 @@ class DeviceControl(tk.Frame):
         self.video_label.config(image=self.stream_standby_photo)
 
         # variable for servo control
-        # self.video_label.focus_set()
+        self.video_label.focus_set()
         self.video_label.bind("<KeyPress>", self.keydown)
         self.video_label.bind("<KeyRelease>", self.keyup)
         self.video_label.bind("<Button-1>", lambda e: self.video_label.focus_set())
@@ -529,7 +532,7 @@ class DeviceControl(tk.Frame):
             
             self.webrtc_client.set_stream_link(globals.video_url)
             
-            self.webrtc_client.start_thread()
+            # self.webrtc_client.start_thread()
             self.webrtc_client.start_connection()
 
             if not self.webrtc_client.is_connected():
@@ -537,7 +540,7 @@ class DeviceControl(tk.Frame):
                 globals.streaming = False
                 self.stream_toggle_button.config(text="Start Stream")
                 self.webrtc_client.close_thread()
-                self.webrtc_client.start_thread()
+                # self.webrtc_client.start_thread()
             else:
                 video_loop()
 
@@ -598,44 +601,44 @@ class DeviceControl(tk.Frame):
         globals.capture.release()
 
     def keyup(self, e):
-            stateChange = False
-            if e.keysym == "Up" and globals.upKeyState:
-                globals.upKeyState = False
-                stateChange = True
-                # send tilt stop command
-                # self.sendServoControl("tiltStop")
-                
-
-            elif e.keysym == "Down" and globals.downKeyState:
-                globals.downKeyState = False
-                stateChange = True
-                # send tilt stop command
-                # self.sendServoControl("tiltStop")
-
-            elif e.keysym == "Left" and globals.leftKeyState:
-                globals.leftKeyState = False
-                stateChange = True
-                # send tilt stop command
-                # self.sendServoControl("panStop")
-
-            elif e.keysym == "Right" and globals.rightKeyState:
-                globals.rightKeyState = False
-                stateChange = True
-                # send tilt stop command
-                # self.sendServoControl("panStop")
-
-            elif e.keysym == "apostrophe" and globals.apostropheState:
-                globals.apostropheState = False
-                stateChange = True
-                # send tilt down command
+        stateChange = False
+        if e.keysym == "Up" and globals.upKeyState:
+            globals.upKeyState = False
+            stateChange = True
+            # send tilt stop command
+            # self.sendServoControl("tiltStop")
             
-            elif e.keysym == "slash" and globals.slashState:
-                globals.slashState = False
-                stateChange = True
-                # send tilt down command
 
-            if stateChange:
-                print(e.keysym, 'released')
+        elif e.keysym == "Down" and globals.downKeyState:
+            globals.downKeyState = False
+            stateChange = True
+            # send tilt stop command
+            # self.sendServoControl("tiltStop")
+
+        elif e.keysym == "Left" and globals.leftKeyState:
+            globals.leftKeyState = False
+            stateChange = True
+            # send tilt stop command
+            # self.sendServoControl("panStop")
+
+        elif e.keysym == "Right" and globals.rightKeyState: # work 
+            globals.rightKeyState = False
+            stateChange = True
+            # send tilt stop command
+            # self.sendServoControl("panStop")
+
+        elif e.keysym == "apostrophe" and globals.apostropheState: # work 
+            globals.apostropheState = False
+            stateChange = True
+            # send tilt down command
+        
+        elif e.keysym == "slash" and globals.slashState: # work 
+            globals.slashState = False
+            stateChange = True
+            # send tilt down command
+
+        if stateChange:
+            print(e.keysym, 'released')
 
     def keydown(self, e):
         global pan_angle
@@ -714,9 +717,3 @@ class DeviceControl(tk.Frame):
         
         if stateChange:
             print(e.keysym, 'pressed')
-
-
-
-
-
-    
