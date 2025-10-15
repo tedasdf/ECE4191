@@ -583,16 +583,6 @@ class DeviceControl(tk.Frame):
             
             self.webrtc_client.set_stream_link(globals.video_url)
             
-            # self.webrtc_client.start_thread()
-            # self.webrtc_client.start_connection()
-
-            # if not self.webrtc_client.is_connected():
-            #     print("WebRTC Connection failed, restaring thread")
-            #     globals.streaming = False
-            #     self.stream_toggle_button.config(text="Start Stream")
-            #     self.webrtc_client.close_thread()
-            #     # self.webrtc_client.start_thread()
-            # else:
             video_loop()
 
             # create a socket and bind it to the audio stream ip and port
@@ -927,7 +917,7 @@ class DeviceControl(tk.Frame):
         
         # Show voting status
         if voted_animal:
-            self.detect_listbox.insert("end", "�️  Voting Window (30s):")
+            self.detect_listbox.insert("end", " ️  Voting Window (30s):")
             
             # Show vote percentage as progress bar
             bar_length = 20
