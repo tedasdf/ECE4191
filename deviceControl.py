@@ -103,7 +103,7 @@ class DeviceControl(tk.Frame):
 
         ########
         # --- WebRTC Client Setup ---
-        self.webrtc_client = WebRTCStream("http://192.168.212.90:8889/cam")
+        self.webrtc_client = WebRTCStream(globals.video_url)
         self.webrtc_client.start_connection()
 
         if self.webrtc_client.is_connected():
@@ -328,7 +328,7 @@ class DeviceControl(tk.Frame):
 
     ### Video capture rolling buffer 
     def save_last_video(self):
-        output_file = self._name_output_file("media/video_clip") + '.mp4'
+        output_file = self._name_output_file("media/recordings/video/buffer_video") + '.mp4'
         if not self.frame_buffer:
             print("No frames in buffer!")
             return 0
@@ -342,13 +342,13 @@ class DeviceControl(tk.Frame):
         return 1
     
 
-    def capture_photo(self, animal_name):
-        if not self.frame_buffer:
-            print("No frames in buffer!")
-            return 0
+    def capture_photo(self, animal_name, frame):
+        # if not self.frame_buffer:
+        #     print("No frames in buffer!")
+        #     return 0
 
-        # Get the most recent frame (last element in the buffer)
-        last_frame = self.frame_buffer[-1]
+        # # Get the most recent frame (last element in the buffer)
+        # last_frame = self.frame_buffer[-1]
 
         # Create the output directory if it doesn't exist
         output_dir = os.path.join("media", "visual_detections", animal_name)
@@ -359,10 +359,10 @@ class DeviceControl(tk.Frame):
         write_path = os.path.join(output_dir, filename)
 
         # Save the frame as a JPEG
-        success = cv2.imwrite(write_path, last_frame)
+        success = cv2.imwrite(write_path, frame)
 
         if success:
-            print(f"Saved photo: {write_path}")
+            # print(f"Saved photo: {write_path}")
             return write_path
         else:
             print("Failed to save photo.")
@@ -473,9 +473,9 @@ class DeviceControl(tk.Frame):
             return
 
         # Concatenate all buffered chunks
-        slice_index = int(len(self.audio_buffer) * (N/30))
+        slice_index = len(self.audio_buffer) - int(len(self.audio_buffer) * (N/30))
         # print("buffer slices:", self.audio_buffer[:slice_index])
-        data = b"".join(list(self.audio_buffer)[:slice_index])
+        data = b"".join(list(self.audio_buffer)[slice_index:])
         pcm_data = np.frombuffer(data, dtype=np.int16)
 
         write_file = 'media/' + folder + self._name_output_file(filename+'_') + ".wav"
@@ -533,7 +533,6 @@ class DeviceControl(tk.Frame):
             
             if self.toggle_model:
                 results = self.yolo_model(frame, conf=0.5)
-                print("results:", results)
                 
                 boxes = results[0].boxes
 
@@ -553,7 +552,16 @@ class DeviceControl(tk.Frame):
             if self.toggle_model:
                 annotated_frame = results[0].plot()
                 frame = annotated_frame
-                self.capture_photo("test")
+                
+                class_ids = results[0].boxes.cls.cpu().numpy().astype(int)
+                confidences = results[0].boxes.conf.cpu().numpy()
+                detected_animals = [
+                    results[0].names[c] 
+                    for c, conf in zip(class_ids, confidences)
+                    if conf > 0.75
+                ]
+                for animal in detected_animals:
+                    self.capture_photo(animal, self.frame_buffer[-1])
 
             # Display the frame in the GUI
             img = Image.fromarray(frame)
@@ -947,7 +955,7 @@ class DeviceControl(tk.Frame):
 
                 # save recording of animal
                 if voted_animal != "Background":
-                    self.save_last_audio(N = 15, folder = f"audio_detections/{voted_animal}/", filename = voted_animal)
+                    self.save_last_audio(N = 7, folder = f"audio_detections/{voted_animal}/", filename = voted_animal)
                 
                 
                 # Announce new detection (avoid spam)
