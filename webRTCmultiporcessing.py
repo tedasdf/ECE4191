@@ -145,7 +145,7 @@ class WebRTCStream:
 
 
 if __name__ == "__main__":
-    stream = WebRTCStream("http://192.168.212.90:8889/cam")
+    stream = WebRTCStream("http://10.143.145.8:8889/cam")
     stream.start_connection()
 
     if stream.is_connected():

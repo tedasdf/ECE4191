@@ -85,6 +85,9 @@ class DeviceControl(tk.Frame):
         self.detected_animals = {}  # Track which animals have been officially detected via voting
         self.last_announced_animal = None  # Track last announced detection to avoid spam
         
+        # Initialize audio classifier in a separate thread to avoid blocking UI
+        # threading.Thread(target=self._init_audio_classifier, daemon=True).start()
+
         # Cooldown tracker
         self.last_key_time = 0
         self.key_cooldown = 0.1  # 100 ms between keypress handling
@@ -210,6 +213,9 @@ class DeviceControl(tk.Frame):
         cam_frame.columnconfigure(1, weight=1) 
         cam_frame.columnconfigure(2, weight=1)
 
+        # tk.Label(cam_frame, text="Zoom:").grid(row=0, column=0, sticky="w")
+        # ttk.Scale(cam_frame, from_=50, to=200, orient="horizontal").grid(row=0, column=1, sticky="ew")
+
         tk.Label(cam_frame, text="Pan:").grid(row=1, column=0, sticky="w")
         ttk.Scale(cam_frame, from_=-90, to=90, orient="horizontal").grid(row=1, column=1, sticky="ew")
 
@@ -329,6 +335,10 @@ class DeviceControl(tk.Frame):
         self.volume_slider.pack(pady=2, fill="x", expand=True)
         self.volume_slider.set(50)  # default volume
 
+        # VLC player instance
+        # self.instance = vlc.Instance("--quiet --network-caching=0")
+        # self.player = self.instance.media_player_new()
+
 
     def _name_output_file(self, str):
         """
@@ -344,6 +354,24 @@ class DeviceControl(tk.Frame):
         """
         self.player.audio_set_volume(int(value))
 
+
+    ### audio stream control functions
+    # def play_audio_stream(self):
+    #     """
+    #     Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
+    #     """
+    #     print("audio stream started")
+    #     media = self.instance.media_new(globals.audio_url)
+    #     self.player.set_media(media)
+    #     self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
+    #     self.player.play()
+
+
+    # def stop_audio_stream(self):
+    #     """
+    #     Stops the audio stream that is playing
+    #     """
+    #     self.player.stop()
 
     ### Video capture rolling buffer 
     def save_last_video(self):
@@ -432,6 +460,27 @@ class DeviceControl(tk.Frame):
         out.release()
 
 
+    ### Audio capture rolling buffer
+    # def _audio_capture_loop(self):
+    #     """
+    #     Continuously capture audio into a rolling memory buffer.
+    #     """
+    #     def callback(indata, frames, time, status):
+    #         if status:
+    #             print(status)
+    #         # store a copy of the chunk in the rolling buffer
+    #         self.audio_buffer.append(indata.copy())
+
+    #     with sd.InputStream(
+    #         samplerate=self.audio_sample_rate,
+    #         channels=self.audio_channels,
+    #         blocksize=1024,  # chunk size
+    #         callback=callback
+    #     ):
+    #         while True:
+    #             sd.sleep(1000)  # keep stream alive
+
+
     def save_last_audio(self, N = 30, folder = None, filename = None):
         """
         Save the last N seconds of audio from the buffer to a WAV file.
@@ -516,6 +565,8 @@ class DeviceControl(tk.Frame):
 
 
             # Some basic image processing
+            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #frame = cv2.resize(frame, (600, 400))  # fit the label size
             if self.awb_enabled.get():
                 frame = gray_world_awb(frame)
 
@@ -575,6 +626,22 @@ class DeviceControl(tk.Frame):
             else:
                 video_loop()
 
+            # self.webrtc_loop = asyncio.new_event_loop()
+            # threading.Thread(target=lambda: self.webrtc_loop.run_forever(), daemon=True).start()
+            # self.webrtc_connection_future = asyncio.run_coroutine_threadsafe(
+            #     self.webrtc_client.connect_to_server(
+            #         vid_label=self.video_label,
+            #         frame_buffer=self.frame_buffer
+            #     ),
+            #     self.webrtc_loop
+            # )
+
+            # Now start audio
+            # self.audio_stream_process = subprocess.Popen(
+            #     ["ffmpeg", "-i", globals.audio_url, "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "-"],
+            #     stdout=subprocess.PIPE,
+            #     stderr=subprocess.DEVNULL            
+            # )
 
             # create a socket and bind it to the audio stream ip and port
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -589,13 +656,31 @@ class DeviceControl(tk.Frame):
         else:
             # Stop video and audio stream if already streaming
             globals.streaming = False
+            # globals.capture.release()
+            # print("Stopping WebRTC connection...")
+            # self.webrtc_close_future = asyncio.run_coroutine_threadsafe(
+            #     self.webrtc_client.close_connection(),
+            #     self.webrtc_loop
+            # )
+            # print("Waiting for WebRTC connection to close...")
+            # self.webrtc_close_future.result()  # wait for closure to complete
+            # print("Waiting for WebRTC connection thread to finish...")
+            # self.webrtc_connection_future.result()  # wait for connection to finish
 
+            # print("WebRTC connection closed.")
+            # if self.webrtc_loop:
+            #     self.webrtc_loop.call_soon_threadsafe(self.webrtc_loop.stop)
+            #     self.webrtc_loop = None
+            # print("WebRTC event loop stopped.")
 
             self.webrtc_client.stop_connection()
             # self.webrtc_client.close_thread()
             print("WebRTC connection closed.")
 
-
+            # self.stop_audio_stream()
+            # audio_stream.stop_stream()
+            # audio_stream.close()
+            # p.termiate()
 
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)
