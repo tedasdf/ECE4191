@@ -103,7 +103,7 @@ class DeviceControl(tk.Frame):
 
         ########
         # --- WebRTC Client Setup ---
-        self.webrtc_client = WebRTCStream("http://10.143.145.8:8889/cam")
+        self.webrtc_client = WebRTCStream("http://192.168.212.90:8889/cam")
         self.webrtc_client.start_connection()
 
         if self.webrtc_client.is_connected():
@@ -537,7 +537,7 @@ class DeviceControl(tk.Frame):
             
             if self.toggle_model:
                 results = self.yolo_model(frame, conf=0.5)
-
+                print(results)
 
             # Some basic image processing
             # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
