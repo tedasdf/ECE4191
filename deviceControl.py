@@ -23,8 +23,9 @@ from headless_controller import HeadlessController
 import socket
 import pyaudio
 
-# Import the high accuracy audio classifier
-from high_accuracy_classifier import HighAccuracyAnimalClassifier
+# Import the high accuracy audio classifier lazily (only when needed)
+# This prevents TensorFlow from loading at startup which can break WebRTC
+# from high_accuracy_classifier import HighAccuracyAnimalClassifier
 
 # pan_speed_percent = 0  # start at middle
 pan_angle = 45
@@ -756,6 +757,11 @@ class DeviceControl(tk.Frame):
         """Initialize the audio classifier in a background thread"""
         try:
             print("Initializing audio classifier...")
+            
+            # Lazy import - only import when actually initializing the classifier
+            # This prevents TensorFlow from loading at GUI startup which can interfere with WebRTC
+            from high_accuracy_classifier import HighAccuracyAnimalClassifier
+            
             audio_dir = "ECE4191 - Potential Audio Targets"
             
             if not os.path.exists(audio_dir):
