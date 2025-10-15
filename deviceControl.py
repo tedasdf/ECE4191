@@ -106,10 +106,6 @@ class DeviceControl(tk.Frame):
 
         ########
         self.webrtc_client = WebRTCStream("http://192.168.212.90:8889/cam")
-        # stream.start_connection()
-
-        # if stream.is_connected():
-        #     print("Connected!")
 
         self.webrtc_loop = None
         self.webrtc_connection_future = None
@@ -352,7 +348,8 @@ class DeviceControl(tk.Frame):
         """
         Called when the volume slider is moved, this sets the volume of the audio stream
         """
-        self.player.audio_set_volume(int(value))
+        # self.player.audio_set_volume(int(value))
+        self.volume_level = int(value)*2/100
 
 
     ### audio stream control functions
@@ -644,13 +641,13 @@ class DeviceControl(tk.Frame):
             # )
 
             # create a socket and bind it to the audio stream ip and port
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.bind((self.AUDIO_IP, self.AUDIO_PORT))
+            # sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # sock.bind((self.AUDIO_IP, self.AUDIO_PORT))
             
-            # Initialize PyAudio
-            p = pyaudio.PyAudio()
-            self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
-            threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start() #disable audio stream temporarily
+            # # Initialize PyAudio
+            # p = pyaudio.PyAudio()
+            # self.audio_stream = p.open(format=self.AUDIO_FORMAT, channels=self.AUDIO_CHANNELS, rate=self.AUDIO_RATE, output=True, frames_per_buffer=self.AUDIO_CHUNK_SIZE)
+            # threading.Thread(target=_audio_stream_loop, daemon=True, args=[sock]).start() #disable audio stream temporarily
 
 
         else:
