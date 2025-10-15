@@ -23,10 +23,6 @@ import socket
 
 from headless_controller import HeadlessController
 
-from high_accuracy_classifier import HighAccuracyAnimalClassifier
-import socket
-import pyaudio
-
 pan_angle = 45  # start at middle
 tilt_angle = 0
 crane_angle = 0
@@ -442,14 +438,14 @@ class DeviceControl(tk.Frame):
         Continuously capture audio from network stream (Raspberry Pi via UDP).
         This receives audio packets via socket and stores them in a rolling buffer.
         """
-        import socket
-        import pyaudio
+        print("🎵 Starting network audio capture thread...")
         
         try:
             # Create UDP socket to receive audio
             self.audio_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.audio_socket.bind((self.AUDIO_IP, self.AUDIO_PORT))
-            print(f"Audio capture started on {self.AUDIO_IP}:{self.AUDIO_PORT}")
+            print(f"✅ Audio socket bound to {self.AUDIO_IP}:{self.AUDIO_PORT}")
+            print(f"   Waiting for audio packets from Raspberry Pi...")
             
             # Initialize PyAudio for playback
             p = pyaudio.PyAudio()
@@ -460,16 +456,25 @@ class DeviceControl(tk.Frame):
                 output=True,
                 frames_per_buffer=self.AUDIO_CHUNK_SIZE
             )
+            print(f"✅ PyAudio playback stream initialized")
             
             self.audio_capture_active = True
+            packet_count = 0
             
             while self.audio_capture_active:
                 try:
-                    # Receive audio data via UDP (blocking call)
-                    data, _ = self.audio_socket.recvfrom(self.AUDIO_CHUNK_SIZE * 4)  # Receive up to 4KB
+                    # Receive audio data via UDP (blocking call with timeout)
+                    self.audio_socket.settimeout(1.0)  # 1 second timeout
+                    data, addr = self.audio_socket.recvfrom(self.AUDIO_CHUNK_SIZE * 4)  # Receive up to 4KB
                     
                     if not data:
                         continue
+                    
+                    packet_count += 1
+                    if packet_count == 1:
+                        print(f"✅ First audio packet received from {addr} ({len(data)} bytes)")
+                    elif packet_count % 100 == 0:
+                        print(f"   Received {packet_count} audio packets...")
                     
                     # Convert bytes to numpy array for buffer storage
                     # Assuming int16 PCM audio from Pi
@@ -486,30 +491,44 @@ class DeviceControl(tk.Frame):
                     self.audio_buffer.append(audio_chunk_float)
                     
                     # Playback audio with volume control
-                    volume = self.player.audio_get_volume() / 100.0 if hasattr(self, 'player') else 0.5
+                    try:
+                        volume = self.player.audio_get_volume() / 100.0 if hasattr(self, 'player') else 0.5
+                    except:
+                        volume = 0.5
                     adjusted_audio = (audio_chunk * volume).astype(np.int16)
                     self.audio_playback_stream.write(adjusted_audio.tobytes())
                     
+                except socket.timeout:
+                    # No data received within timeout - this is normal, just continue
+                    continue
                 except Exception as e:
                     if self.audio_capture_active:
-                        print(f"Error receiving audio: {e}")
+                        print(f"❌ Error receiving/playing audio: {e}")
                     time.sleep(0.01)
                     
         except Exception as e:
-            print(f"Error starting audio capture: {e}")
+            print(f"❌ Error starting audio capture: {e}")
             import traceback
             traceback.print_exc()
         finally:
             # Cleanup
+            print("🛑 Stopping audio capture...")
             if hasattr(self, 'audio_playback_stream'):
-                self.audio_playback_stream.stop_stream()
-                self.audio_playback_stream.close()
+                try:
+                    self.audio_playback_stream.stop_stream()
+                    self.audio_playback_stream.close()
+                except:
+                    pass
             if self.audio_socket:
-                self.audio_socket.close()
-            print("Audio capture stopped")
+                try:
+                    self.audio_socket.close()
+                except:
+                    pass
+            print("✅ Audio capture stopped cleanly")
     
     def _stop_audio_capture(self):
         """Stop the network audio capture loop"""
+        print("Stopping audio capture...")
         self.audio_capture_active = False
         if self.audio_socket:
             try:
@@ -902,18 +921,18 @@ class DeviceControl(tk.Frame):
                     # GUI audio is 44100 Hz, we need ~3 seconds = 132300 samples
                     samples_needed = int(3.0 * self.audio_sample_rate)  # 3 seconds at 44100 Hz
                     
-                    # Convert buffer to audio array
-                    raw_audio_data = b"".join(self.audio_buffer)
-                    audio_data = np.frombuffer(raw_audio_data, dtype=np.float32)
+                    # Convert buffer to audio array (buffer now contains numpy arrays, not bytes)
+                    # Concatenate all numpy arrays in the buffer
+                    audio_data = np.concatenate(list(self.audio_buffer), axis=0)
                     
                     # Take the most recent samples
                     if len(audio_data) > samples_needed:
                         audio_data = audio_data[-samples_needed:]
                     
                     # Ensure it's 1D (mono) - convert stereo to mono by averaging channels
-                    if self.audio_channels == 2:
-                        # Reshape to (samples, 2) and take mean across channels
-                        audio_data = audio_data.reshape(-1, 2).mean(axis=1)
+                    if self.audio_channels == 2 and len(audio_data.shape) == 2:
+                        # Already in (samples, 2) format, take mean across channels
+                        audio_data = audio_data.mean(axis=1)
                     else:
                         audio_data = audio_data.flatten()
                     
