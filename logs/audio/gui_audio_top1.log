@@ -82,3 +82,5 @@
 2025-10-09T13:34:04.641316 - TOP: FrogmouthTawny (28.31%) [Count: 20] | ALL: FrogmouthTawny(28.3%), Bat(9.4%), Duck(8.8%)
 2025-10-09T13:34:15.563101 - TOP: FrogmouthTawny (36.30%) [Count: 21] | ALL: FrogmouthTawny(36.3%), Bat(9.1%), Duck(8.0%)
 2025-10-09T13:34:26.308741 - TOP: FrogmouthTawny (33.60%) [Count: 22] | ALL: FrogmouthTawny(33.6%), Bat(8.9%), Duck(8.5%)
+2025-10-15T22:25:11.117379 - DETECTION: Possum (Vote: 100%, Conf: 97.4%)
+2025-10-15T22:25:27.188745 - DETECTION: Background (Vote: 75%, Conf: 99.1%)
