@@ -21,11 +21,6 @@ import requests
 
 from headless_controller import HeadlessController
 
-import socket
-import pyaudio
-
-# # Import the high accuracy audio classifier
-# from high_accuracy_classifier import HighAccuracyAnimalClassifier
 
 pan_angle = 45  # start at middle
 tilt_angle = 0
