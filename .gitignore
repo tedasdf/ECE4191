@@ -6,3 +6,6 @@ functions_copy.py
 
 high_accuracy_classifier.pkl
 high_accuracy_classifier.py
+
+*.pyc
+ECE4191 - Potential Audio Targets
