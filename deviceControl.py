@@ -92,8 +92,8 @@ class DeviceControl(tk.Frame):
         # variables to control the live recording function
         self.recording = False
         self.record_start_time = None
-        self.max_record_seconds = 60
-        self.recorded_frames = deque(maxlen=self.fps * self.max_record_seconds)
+        # self.max_record_seconds = 60
+        self.recorded_frames = []
         self.record_thread = None
 
         # Variable to control the camera torches
@@ -115,10 +115,10 @@ class DeviceControl(tk.Frame):
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
 
-        # self.command_controller = HeadlessController(
-        #     mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
-        #     mqtt_port=int(globals.controller_IP.split(":")[1])
-        #     )
+        self.command_controller = HeadlessController(
+            mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
+            mqtt_port=int(globals.controller_IP.split(":")[1])
+            )
 
         self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
         self.toggle_model = False
@@ -378,7 +378,7 @@ class DeviceControl(tk.Frame):
             # Start recording
             self.recording = True
             self.record_start_time = time.time()
-            self.recorded_frames.clear()
+            self.recorded_frames = []
 
             # Start background thread to record video + audio
             self.record_thread = threading.Thread(target=self._record_loop, daemon=True)
@@ -402,12 +402,7 @@ class DeviceControl(tk.Frame):
 
         while self.recording:
             if self.frame_buffer:
-                self.recorded_frames.append(self.frame_buffer[-1].copy())
-            if time.time() - self.record_start_time >= self.max_record_seconds:
-                self.recording = False
-                self.toggle_recording()
-                print("recording limit reached")
-                break
+                self.recorded_frames.insert(0, self.frame_buffer[-1].copy())
             time.sleep(1 / self.fps)  # sync to frame rate
 
         self._save_video_recording()
