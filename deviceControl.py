@@ -92,8 +92,8 @@ class DeviceControl(tk.Frame):
         # variables to control the live recording function
         self.recording = False
         self.record_start_time = None
-        self.max_record_seconds = 60
-        self.recorded_frames = deque(maxlen=self.fps * self.max_record_seconds)
+        # self.max_record_seconds = 60
+        self.recorded_frames = []
         self.record_thread = None
 
         # Variable to control the camera torches
@@ -313,8 +313,9 @@ class DeviceControl(tk.Frame):
         """
         This is a helper function for adding the date and time that a sample was taken to the name of the file it is saved in
         """
-        bits = str.split(".")
-        return f"{bits[0]}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')}.{bits[1]}"
+        return str + datetime.datetime.now().isoformat(sep="_", timespec='seconds').replace(":", "-")
+        # bits = str.split(".")
+        # return f"{bits[0]}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')}.{bits[1]}"
 
 
     def set_volume(self, value):
@@ -325,27 +326,9 @@ class DeviceControl(tk.Frame):
         self.volume_level = int(value)*2/100
 
 
-    ### audio stream control functions
-    # def play_audio_stream(self):
-    #     """
-    #     Initiaites the audio stream in the GUI, sourced from the audio url set in globals.py
-    #     """
-    #     print("audio stream started")
-    #     media = self.instance.media_new(globals.audio_url)
-    #     self.player.set_media(media)
-    #     self.player.audio_set_volume(self.volume_slider.get())  # apply slider setting
-    #     self.player.play()
-
-
-    # def stop_audio_stream(self):
-    #     """
-    #     Stops the audio stream that is playing
-    #     """
-    #     self.player.stop()
-
     ### Video capture rolling buffer 
     def save_last_video(self):
-        output_file = self._name_output_file("media/video_clip.mp4")
+        output_file = self._name_output_file("media/recordings/video/buffer_video") + '.mp4'
         if not self.frame_buffer:
             print("No frames in buffer!")
             return 0
@@ -359,13 +342,13 @@ class DeviceControl(tk.Frame):
         return 1
     
 
-    def capture_photo(self, animal_name):
-        if not self.frame_buffer:
-            print("No frames in buffer!")
-            return 0
+    def capture_photo(self, animal_name, frame):
+        # if not self.frame_buffer:
+        #     print("No frames in buffer!")
+        #     return 0
 
-        # Get the most recent frame (last element in the buffer)
-        last_frame = self.frame_buffer[-1]
+        # # Get the most recent frame (last element in the buffer)
+        # last_frame = self.frame_buffer[-1]
 
         # Create the output directory if it doesn't exist
         output_dir = os.path.join("media", "visual_detections", animal_name)
@@ -376,10 +359,10 @@ class DeviceControl(tk.Frame):
         write_path = os.path.join(output_dir, filename)
 
         # Save the frame as a JPEG
-        success = cv2.imwrite(write_path, last_frame)
+        success = cv2.imwrite(write_path, frame)
 
         if success:
-            print(f"Saved photo: {write_path}")
+            # print(f"Saved photo: {write_path}")
             return write_path
         else:
             print("Failed to save photo.")
@@ -395,7 +378,7 @@ class DeviceControl(tk.Frame):
             # Start recording
             self.recording = True
             self.record_start_time = time.time()
-            self.recorded_frames.clear()
+            self.recorded_frames = []
 
             # Start background thread to record video + audio
             self.record_thread = threading.Thread(target=self._record_loop, daemon=True)
@@ -416,26 +399,14 @@ class DeviceControl(tk.Frame):
         Background loop to capture video frames and audio while recording.
         Stops automatically after self.max_record_seconds.
         """
-        # Optional: Record audio via VLC stream
-        output_file = self._name_output_file(self.recorded_audio_file)
-        options = f":sout=#file{{dst={output_file}}}"
-        media = self.instance.media_new(globals.audio_url, options)
-        recorder = self.instance.media_player_new()
-        recorder.set_media(media)
-        recorder.play()
 
         while self.recording:
             if self.frame_buffer:
-                self.recorded_frames.append(self.frame_buffer[-1].copy())
-            if time.time() - self.record_start_time >= self.max_record_seconds:
-                self.recording = False
-                self.toggle_recording()
-                print("recording limit reached")
-                break
+                self.recorded_frames.insert(0, self.frame_buffer[-1].copy())
             time.sleep(1 / self.fps)  # sync to frame rate
 
-        recorder.stop()
         self._save_video_recording()
+        self._save_audio_recording()
 
 
     def _save_video_recording(self):
@@ -446,7 +417,7 @@ class DeviceControl(tk.Frame):
             print("No frames recorded!")
             return
         
-        output_file = self._name_output_file(self.recorded_video_file)
+        output_file = self._name_output_file("media/recordings/video/recorded_video_") + '.mp4'
 
         # Save video
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -455,6 +426,26 @@ class DeviceControl(tk.Frame):
         for f in self.recorded_frames:
             out.write(cv2.cvtColor(f, cv2.COLOR_BGR2RGB))
         out.release()
+
+
+    def _save_audio_recording(self):
+        """
+        This function saves the manual audio recording to the output file.
+        """
+        if not self.audio_recording:
+            print("No audio recorded!")
+            return
+        
+        output_file = self._name_output_file("media/recordings/audio/recorded_audio_") + '.wav'
+
+        wf = wave.open(output_file, 'wb')
+        wf.setnchannels(self.AUDIO_CHANNELS)
+        wf.setsampwidth(2)
+        wf.setframerate(self.AUDIO_RATE)
+        wf.writeframes(b''.join(self.audio_recording))
+        wf.close()
+        self.audio_recording = [] # clear the recording once its saved
+
 
 
     def save_last_audio(self, N = 30, folder = None, filename = None):
@@ -477,9 +468,9 @@ class DeviceControl(tk.Frame):
             return
 
         # Concatenate all buffered chunks
-        slice_index = int(len(self.audio_buffer) * (N/30))
+        slice_index = len(self.audio_buffer) - int(len(self.audio_buffer) * (N/30))
         # print("buffer slices:", self.audio_buffer[:slice_index])
-        data = b"".join(list(self.audio_buffer)[:slice_index])
+        data = b"".join(list(self.audio_buffer)[slice_index:])
         pcm_data = np.frombuffer(data, dtype=np.int16)
 
         write_file = 'media/' + folder + self._name_output_file(filename+'_') + ".wav"
@@ -537,17 +528,35 @@ class DeviceControl(tk.Frame):
             
             if self.toggle_model:
                 results = self.yolo_model(frame, conf=0.5)
-                print("results:", results)
+                
+                boxes = results[0].boxes
 
+                detections = []
+                for box in boxes:
+                    cls_id = int(box.cls)
+                    conf = float(box.conf)
+                    detections.append({
+                        "class name": results[0].names[cls_id],
+                        "confidence": conf,
+                        "bbox": box
+                    })
             # Some basic image processing
-            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            #frame = cv2.resize(frame, (600, 400))  # fit the label size
             if self.awb_enabled.get():
                 frame = gray_world_awb(frame)
 
             if self.toggle_model:
                 annotated_frame = results[0].plot()
                 frame = annotated_frame
+                
+                class_ids = results[0].boxes.cls.cpu().numpy().astype(int)
+                confidences = results[0].boxes.conf.cpu().numpy()
+                detected_animals = [
+                    results[0].names[c] 
+                    for c, conf in zip(class_ids, confidences)
+                    if conf > 0.75
+                ]
+                for animal in detected_animals:
+                    self.capture_photo(animal, self.frame_buffer[-1])
 
             # Display the frame in the GUI
             img = Image.fromarray(frame)
@@ -558,6 +567,7 @@ class DeviceControl(tk.Frame):
             # Schedule the next frame update
             self.video_label.after(20, video_loop)  # schedule next frame
             self.frame_buffer.append(frame.copy()) # add recording to video buffer
+
         def _audio_stream_loop(sock):
             # Empty the 30 second buffer
             print("Audio stream loop accessed")
@@ -610,16 +620,8 @@ class DeviceControl(tk.Frame):
             # Stop video and audio stream if already streaming
             globals.streaming = False
 
-            # self.webrtc_client.stop_connection()
-            # self.webrtc_client.close_thread()
-
-            # print("WebRTC connection closed.")
-
             self.stream_toggle_button.config(text="Start Stream")
             self.video_label.config(image=self.stream_standby_photo)
-
-    def stop_video_stream(self):
-        globals.capture.release()
 
     def keyup(self, e):
         stateChange = False
@@ -953,7 +955,7 @@ class DeviceControl(tk.Frame):
 
                 # save recording of animal
                 if voted_animal != "Background":
-                    self.save_last_audio(N = 15, folder = f"audio_detections/{voted_animal}/", filename = voted_animal)
+                    self.save_last_audio(N = 7, folder = f"audio_detections/{voted_animal}/", filename = voted_animal)
                 
                 
                 # Announce new detection (avoid spam)

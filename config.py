@@ -34,9 +34,9 @@ FMAX = 8000  # Maximum frequency (Hz) - covers most animal vocalizations
 # Real-Time Inference Parameters
 # ========================================
 # Voting system for robust predictions
-VOTING_WINDOW_SIZE = 10  # Number of recent predictions to consider (10 predictions = 30 seconds)
+VOTING_WINDOW_SIZE = 3  # Number of recent predictions to consider (10 predictions = 30 seconds)
 CONFIDENCE_THRESHOLD = 0.65  # Minimum confidence to accept a prediction
-VOTING_THRESHOLD = 0.70  # Minimum percentage of votes needed to declare detection (70% = 7/10)
+VOTING_THRESHOLD = 0.65  # Minimum percentage of votes needed to declare detection (70% = 7/10)
 
 # GUI Integration
 GUI_AUDIO_SAMPLE_RATE = 44100  # Hz - GUI streams at 44100 Hz
