@@ -115,10 +115,10 @@ class DeviceControl(tk.Frame):
         self.webrtc_connection_future = None
         self.webrtc_close_future = None
 
-        # self.command_controller = HeadlessController(
-        #     mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
-        #     mqtt_port=int(globals.controller_IP.split(":")[1])
-        #     )
+        self.command_controller = HeadlessController(
+            mqtt_broker_host_ip=globals.controller_IP.split(":")[0], 
+            mqtt_port=int(globals.controller_IP.split(":")[1])
+            )
 
         self.yolo_model: YOLO = YOLO("best.pt")  # load a pretrained YOLOv8n model
         self.toggle_model = False
@@ -560,25 +560,29 @@ class DeviceControl(tk.Frame):
             self.frame_buffer.append(frame.copy()) # add recording to video buffer
         def _audio_stream_loop(sock):
             # Empty the 30 second buffer
+            print("Audio stream loop accessed")
             self.audio_buffer.clear()
             while True:
+                # print("Start of loop")
                 data, _ = sock.recvfrom(self.AUDIO_CHUNK_SIZE * 32)  # 2 bytes per sample
-
+                # print(f"Looping the audio loop with socket: {sock}")
                 # add audio chunk to 30 second buffer
                 self.audio_buffer.append(data)
 
                 # If recording, add the data to the recording
                 if self.recording:
                     self.audio_recording.append(data)
+                # print("past the if statement")
 
                 # Playback with volume adjustment
                 audio_bytes = np.frombuffer(data, dtype=np.int16)
                 adjusted = (audio_bytes * self.volume_level).astype(np.int16)
                 self.audio_stream.write(adjusted.tobytes())
+                # print(f"Received audio bytes: {audio_bytes}")
                 # self.audio_stream.write(data)
 
-                if not globals.streaming:
-                    return
+                # if not globals.streaming:
+                #     return
 
         if not globals.streaming:
             # Start video stream if not streaming
@@ -594,6 +598,7 @@ class DeviceControl(tk.Frame):
             # create a socket and bind it to the audio stream ip and port
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.bind((self.AUDIO_IP, self.AUDIO_PORT))
+            print(sock, self.AUDIO_IP, self.AUDIO_PORT)
             
             # Initialize PyAudio
             p = pyaudio.PyAudio()

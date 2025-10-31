@@ -69,8 +69,8 @@ class WildlifeBotApp(tk.Tk):
         self.show_frame(DeviceControl)
 
     def show_frame(self, screen):
-        frame = self.frames[screen] 
-        frame.tkraise()  # bring the frame to the top 
+        frame = self.frames[screen]
+        frame.tkraise()  # bring the frame to the top
 
 
 if __name__ == "__main__":

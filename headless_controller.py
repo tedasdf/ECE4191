@@ -25,6 +25,7 @@ class HeadlessController:
         self.button_state = {}
 
     def start_loop(self, poll_hz=30, cmd_hz=30):
+        # print("start loop called")
         self.running = True
         # Timer handles for cancellation
         self._poll_timer = None
@@ -39,6 +40,7 @@ class HeadlessController:
     print("🎮 Headless Windows controller began")
 
     def _poll_gamepad(self, hz=30):
+        # print("polling")
         """Poll once, update states, and reschedule without blocking."""
         if not getattr(self, "running", False):
             return
@@ -46,6 +48,7 @@ class HeadlessController:
         try:
             events = get_gamepad()  # If this blocks, it only blocks this tick.
             for event in events:
+                # print("There has been a joystick event")
                 if event.code in self.axis_state:
                     self.axis_state[event.code] = event.state / 32768.0
                 elif event.code.startswith("BTN_"):
@@ -112,7 +115,7 @@ class HeadlessController:
             print(cmd)
         else:
             cmd = {"type": "all", "action": "stop"}
-            print(cmd)
+            # print(cmd)
 
         self.send_command(json.dumps(cmd).encode())
 
