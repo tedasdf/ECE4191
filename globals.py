@@ -5,7 +5,7 @@
 # video_url = "tcp://192.168.21.90:5000"
 # video_url = "tcp://192.168.77.1:5000"
 # audio_url = "http://10.94.102.23:8080"
-video_url = "http://192.168.88.1:8889/cam"
+video_url = "http://192.168.77.1:8889/cam"
 audio_url = "http://192.168.137.2:8080/audio.mp3"
 # PI_IP = "192.168.0.145"
 PI_IP = "10.94.102.23"  # Riley's Raspberry Pi IP
